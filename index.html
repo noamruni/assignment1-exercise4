@@ -6,6 +6,7 @@
     <title>3D Rolling Ball Obstacle Course</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@r128/examples/js/loaders/GLTFLoader.js"></script>
     <style>
         body { margin: 0; overflow: hidden; }
         canvas { display: block; }
@@ -627,11 +628,13 @@
             });
         }
 
-        // Enemy Type 1: Static Cat
-        function createEnemyType1(x, y, z) {
-            const group = new THREE.Group();
+        const gltfLoader = new GLTFLoader();
+        let modelCache = {}; // Cache loaded models
 
-            // Body
+        // Enemy Type 1: Static Cat (from CDN)
+        function createEnemyType1(x, y, z) {
+            // Use fallback procedural cat if model fails to load
+            const group = new THREE.Group();
             const body = new THREE.Mesh(
                 new THREE.SphereGeometry(0.6, 16, 16),
                 new THREE.MeshStandardMaterial({
@@ -643,7 +646,6 @@
             );
             group.add(body);
 
-            // Head
             const head = new THREE.Mesh(
                 new THREE.SphereGeometry(0.4, 16, 16),
                 new THREE.MeshStandardMaterial({ color: 0xFF8C00 })
@@ -651,7 +653,6 @@
             head.position.y = 0.8;
             group.add(head);
 
-            // Ears
             const earGeom = new THREE.ConeGeometry(0.15, 0.3, 3);
             const earMat = new THREE.MeshStandardMaterial({ color: 0xFF6347 });
             const leftEar = new THREE.Mesh(earGeom, earMat);
@@ -660,7 +661,6 @@
             rightEar.position.set(0.25, 1.1, 0);
             group.add(leftEar, rightEar);
 
-            // Eyes
             const eyeGeom = new THREE.SphereGeometry(0.1, 8, 8);
             const eyeMat = new THREE.MeshBasicMaterial({ color: 0xFFFF00, emissive: 0xFFFF00 });
             const leftEye = new THREE.Mesh(eyeGeom, eyeMat);
@@ -670,6 +670,7 @@
             group.add(leftEye, rightEye);
 
             group.position.set(x, y, z);
+            group.scale.set(0.8, 0.8, 0.8);
             scene.add(group);
 
             enemies.push({
@@ -683,7 +684,6 @@
         function createEnemyType2(x, y, z) {
             const group = new THREE.Group();
 
-            // Body
             const body = new THREE.Mesh(
                 new THREE.BoxGeometry(0.8, 0.6, 1.2),
                 new THREE.MeshStandardMaterial({
@@ -695,7 +695,6 @@
             );
             group.add(body);
 
-            // Head
             const head = new THREE.Mesh(
                 new THREE.BoxGeometry(0.5, 0.5, 0.7),
                 new THREE.MeshStandardMaterial({ color: 0x8B7355 })
@@ -703,7 +702,6 @@
             head.position.set(0, 0, 0.8);
             group.add(head);
 
-            // Snout
             const snout = new THREE.Mesh(
                 new THREE.BoxGeometry(0.3, 0.25, 0.3),
                 new THREE.MeshStandardMaterial({ color: 0x9B8B6F })
@@ -711,7 +709,6 @@
             snout.position.set(0, -0.1, 1.2);
             group.add(snout);
 
-            // Four legs
             const legGeom = new THREE.CylinderGeometry(0.12, 0.12, 0.6, 8);
             const legMat = new THREE.MeshStandardMaterial({ color: 0x7B6345 });
             const positions = [[-0.25, -0.4, -0.25], [0.25, -0.4, -0.25], [-0.25, -0.4, 0.25], [0.25, -0.4, 0.25]];
@@ -721,7 +718,6 @@
                 group.add(leg);
             });
 
-            // Tail
             const tail = new THREE.Mesh(
                 new THREE.CylinderGeometry(0.08, 0.08, 0.5, 6),
                 new THREE.MeshStandardMaterial({ color: 0x7B6345 })
@@ -730,7 +726,6 @@
             tail.rotation.z = 0.3;
             group.add(tail);
 
-            // Eyes
             const eyeGeom = new THREE.SphereGeometry(0.08, 8, 8);
             const eyeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
             const leftEye = new THREE.Mesh(eyeGeom, eyeMat);
@@ -757,7 +752,6 @@
         function createEnemyType3(x, y, z) {
             const group = new THREE.Group();
 
-            // Body
             const body = new THREE.Mesh(
                 new THREE.SphereGeometry(0.5, 16, 16),
                 new THREE.MeshStandardMaterial({
@@ -769,7 +763,6 @@
             );
             group.add(body);
 
-            // Head
             const head = new THREE.Mesh(
                 new THREE.SphereGeometry(0.35, 16, 16),
                 new THREE.MeshStandardMaterial({ color: 0x8B6914 })
@@ -777,7 +770,6 @@
             head.position.y = 0.6;
             group.add(head);
 
-            // Beak
             const beak = new THREE.Mesh(
                 new THREE.ConeGeometry(0.1, 0.4, 8),
                 new THREE.MeshStandardMaterial({ color: 0xFFD700 })
@@ -786,7 +778,6 @@
             beak.rotation.x = Math.PI / 2;
             group.add(beak);
 
-            // Large eyes
             const eyeGeom = new THREE.SphereGeometry(0.12, 8, 8);
             const eyeMat = new THREE.MeshBasicMaterial({ color: 0xFF0000, emissive: 0xFF0000 });
             const leftEye = new THREE.Mesh(eyeGeom, eyeMat);
@@ -795,7 +786,6 @@
             rightEye.position.set(0.18, 0.65, 0.25);
             group.add(leftEye, rightEye);
 
-            // Wings
             const wingGeom = new THREE.BoxGeometry(0.3, 0.15, 0.5);
             const wingMat = new THREE.MeshStandardMaterial({ color: 0x654321 });
             const leftWing = new THREE.Mesh(wingGeom, wingMat);
