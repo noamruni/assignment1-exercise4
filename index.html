@@ -6,7 +6,6 @@
     <title>3D Rolling Ball Obstacle Course</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@r128/examples/js/loaders/GLTFLoader.js"></script>
     <style>
         body { margin: 0; overflow: hidden; }
         canvas { display: block; }
@@ -167,120 +166,46 @@
 
         // Initialize Three.js
         function createStarfieldBackground() {
-            // Create procedural starfield background
-            const canvas = document.createElement('canvas');
-            canvas.width = 1024;
-            canvas.height = 1024;
-            const ctx = canvas.getContext('2d');
+            try {
+                // Create procedural starfield background
+                const canvas = document.createElement('canvas');
+                canvas.width = 512;
+                canvas.height = 512;
+                const ctx = canvas.getContext('2d');
 
-            // Dark space background
-            ctx.fillStyle = '#0a0a1a';
-            ctx.fillRect(0, 0, 1024, 1024);
+                // Dark space background
+                ctx.fillStyle = '#0a0a1a';
+                ctx.fillRect(0, 0, 512, 512);
 
-            // Create small stars (20% size with radiant glow)
-            const starCount = 300;
-            const starColors = [
-                { hex: '#FFFFFF', rgba: 'rgba(255, 255, 255' },
-                { hex: '#AACCFF', rgba: 'rgba(170, 204, 255' },
-                { hex: '#FFDDAA', rgba: 'rgba(255, 221, 170' }
-            ];
+                // Create stars
+                const starCount = 200;
+                for (let i = 0; i < starCount; i++) {
+                    const x = Math.random() * 512;
+                    const y = Math.random() * 512;
+                    const size = Math.random() * 1.5;
+                    const brightness = Math.random();
 
-            for (let i = 0; i < starCount; i++) {
-                const x = Math.random() * 1024;
-                const y = Math.random() * 1024;
-                const size = Math.random() * 0.4; // 20% of original size
-                const brightness = Math.random() * 0.8 + 0.5;
+                    const colors = ['#FFFFFF', '#AACCFF', '#FFDDAA'];
+                    ctx.fillStyle = colors[Math.floor(Math.random() * colors.length)];
+                    ctx.globalAlpha = brightness;
+                    ctx.fillRect(x, y, size, size);
+                    ctx.globalAlpha = 1;
+                }
 
-                // Pick random color
-                const colorObj = starColors[Math.floor(Math.random() * starColors.length)];
+                // Add nebula effect
+                const gradient = ctx.createLinearGradient(0, 0, 512, 512);
+                gradient.addColorStop(0, 'rgba(100, 50, 150, 0.1)');
+                gradient.addColorStop(0.5, 'rgba(50, 100, 150, 0.05)');
+                gradient.addColorStop(1, 'rgba(100, 50, 150, 0.1)');
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, 512, 512);
 
-                // Add radiant glow around star
-                const glowGradient = ctx.createRadialGradient(x, y, 0, x, y, 8);
-                glowGradient.addColorStop(0, colorObj.hex);
-                glowGradient.addColorStop(0.3, colorObj.rgba + ', 0.6)');
-                glowGradient.addColorStop(1, 'rgba(200, 200, 255, 0)');
-
-                ctx.fillStyle = glowGradient;
-                ctx.globalAlpha = brightness;
-                ctx.beginPath();
-                ctx.arc(x, y, 8, 0, Math.PI * 2);
-                ctx.fill();
-
-                // Draw star center
-                ctx.fillStyle = colorObj.hex;
-                ctx.fillRect(x - size/2, y - size/2, size, size);
-                ctx.globalAlpha = 1;
+                const texture = new THREE.CanvasTexture(canvas);
+                return texture;
+            } catch (e) {
+                console.error('Error creating starfield:', e);
+                return new THREE.Color(0x1a1a2e);
             }
-
-            // Draw Moon (upper right)
-            const moonX = 800;
-            const moonY = 150;
-            const moonRadius = 60;
-
-            // Moon gradient
-            const moonGradient = ctx.createRadialGradient(moonX - 20, moonY - 20, 0, moonX, moonY, moonRadius);
-            moonGradient.addColorStop(0, '#FFFACD');
-            moonGradient.addColorStop(0.8, '#F0E68C');
-            moonGradient.addColorStop(1, '#DAA520');
-            ctx.fillStyle = moonGradient;
-            ctx.beginPath();
-            ctx.arc(moonX, moonY, moonRadius, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Moon craters
-            ctx.fillStyle = 'rgba(150, 140, 100, 0.3)';
-            ctx.beginPath();
-            ctx.arc(moonX - 20, moonY - 15, 8, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.arc(moonX + 15, moonY + 20, 6, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.arc(moonX - 5, moonY + 30, 5, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Draw Saturn (lower left)
-            const saturnX = 250;
-            const saturnY = 700;
-            const saturnRadius = 50;
-
-            // Saturn rings
-            ctx.strokeStyle = 'rgba(200, 180, 140, 0.8)';
-            ctx.lineWidth = 15;
-            ctx.beginPath();
-            ctx.ellipse(saturnX, saturnY, 90, 25, -0.3, 0, Math.PI * 2);
-            ctx.stroke();
-
-            // Saturn body
-            const saturnGradient = ctx.createRadialGradient(saturnX - 15, saturnY - 15, 0, saturnX, saturnY, saturnRadius);
-            saturnGradient.addColorStop(0, '#FFD700');
-            saturnGradient.addColorStop(0.7, '#FFA500');
-            saturnGradient.addColorStop(1, '#FF8C00');
-            ctx.fillStyle = saturnGradient;
-            ctx.beginPath();
-            ctx.arc(saturnX, saturnY, saturnRadius, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Saturn stripes
-            ctx.strokeStyle = 'rgba(200, 100, 50, 0.3)';
-            ctx.lineWidth = 5;
-            for (let i = -3; i <= 3; i++) {
-                ctx.beginPath();
-                ctx.moveTo(saturnX - saturnRadius, saturnY + i * 10);
-                ctx.lineTo(saturnX + saturnRadius, saturnY + i * 10);
-                ctx.stroke();
-            }
-
-            // Add nebula effect
-            const gradient = ctx.createLinearGradient(0, 0, 1024, 1024);
-            gradient.addColorStop(0, 'rgba(100, 50, 150, 0.1)');
-            gradient.addColorStop(0.5, 'rgba(50, 100, 150, 0.05)');
-            gradient.addColorStop(1, 'rgba(100, 50, 150, 0.1)');
-            ctx.fillStyle = gradient;
-            ctx.fillRect(0, 0, 1024, 1024);
-
-            const texture = new THREE.CanvasTexture(canvas);
-            return texture;
         }
 
         function init() {
@@ -628,10 +553,7 @@
             });
         }
 
-        const gltfLoader = new GLTFLoader();
-        let modelCache = {}; // Cache loaded models
-
-        // Enemy Type 1: Static Cat (from CDN)
+        // Enemy Type 1: Static Cat
         function createEnemyType1(x, y, z) {
             // Use fallback procedural cat if model fails to load
             const group = new THREE.Group();
@@ -662,7 +584,7 @@
             group.add(leftEar, rightEar);
 
             const eyeGeom = new THREE.SphereGeometry(0.1, 8, 8);
-            const eyeMat = new THREE.MeshBasicMaterial({ color: 0xFFFF00, emissive: 0xFFFF00 });
+            const eyeMat = new THREE.MeshStandardMaterial({ color: 0xFFFF00, emissive: 0xFFFF00, emissiveIntensity: 0.8 });
             const leftEye = new THREE.Mesh(eyeGeom, eyeMat);
             leftEye.position.set(-0.15, 0.85, 0.35);
             const rightEye = new THREE.Mesh(eyeGeom, eyeMat);
@@ -779,7 +701,7 @@
             group.add(beak);
 
             const eyeGeom = new THREE.SphereGeometry(0.12, 8, 8);
-            const eyeMat = new THREE.MeshBasicMaterial({ color: 0xFF0000, emissive: 0xFF0000 });
+            const eyeMat = new THREE.MeshStandardMaterial({ color: 0xFF0000, emissive: 0xFF0000, emissiveIntensity: 0.8 });
             const leftEye = new THREE.Mesh(eyeGeom, eyeMat);
             leftEye.position.set(-0.18, 0.65, 0.25);
             const rightEye = new THREE.Mesh(eyeGeom, eyeMat);
