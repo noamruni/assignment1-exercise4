@@ -164,6 +164,59 @@
             `).join('');
         }
 
+        // Audio management system
+        const sounds = {};
+        let musicPlaying = false;
+
+        function loadSound(name, filepath) {
+            const audio = new Audio(filepath);
+            audio.volume = 0.5;
+            sounds[name] = audio;
+        }
+
+        function playSound(name, volume = null) {
+            if (sounds[name]) {
+                try {
+                    const audio = sounds[name].cloneNode();
+                    if (volume !== null) audio.volume = volume;
+                    audio.play().catch(e => console.warn(`Sound ${name} failed to play:`, e));
+                } catch (e) {
+                    console.warn(`Error playing sound ${name}:`, e);
+                }
+            }
+        }
+
+        function playSoundWithCooldown(name, cooldownMs = 100) {
+            if (!sounds[name + '_lastPlay']) sounds[name + '_lastPlay'] = 0;
+            const now = Date.now();
+            if (now - sounds[name + '_lastPlay'] > cooldownMs) {
+                playSound(name);
+                sounds[name + '_lastPlay'] = now;
+            }
+        }
+
+        function playBackgroundMusic() {
+            if (sounds.music && !musicPlaying) {
+                try {
+                    sounds.music.currentTime = 0;
+                    sounds.music.loop = true;
+                    sounds.music.volume = 0.3;
+                    sounds.music.play().catch(e => console.warn('Music failed to play:', e));
+                    musicPlaying = true;
+                } catch (e) {
+                    console.warn('Error playing music:', e);
+                }
+            }
+        }
+
+        function stopBackgroundMusic() {
+            if (sounds.music) {
+                sounds.music.pause();
+                sounds.music.currentTime = 0;
+                musicPlaying = false;
+            }
+        }
+
         // Initialize Three.js
         function createStarfieldBackground() {
             try {
@@ -208,7 +261,20 @@
             }
         }
 
-        function init() {
+function init() {
+            // Load all sounds
+            loadSound('jump', 'sounds/jump.mp3');
+            loadSound('hit', 'sounds/hit.mp3');
+            loadSound('fall', 'sounds/fall.mp3');
+            loadSound('collect', 'sounds/collect.mp3');
+            loadSound('shoot', 'sounds/shoot.mp3');
+            loadSound('gameover', 'sounds/gameover.mp3');
+            loadSound('click', 'sounds/click.mp3');
+            loadSound('music', 'sounds/music.mp3');
+
+            // Start background music
+            playBackgroundMusic();
+
             // Scene
             scene = new THREE.Scene();
 
@@ -554,8 +620,8 @@
         }
 
         // Enemy Type 1: Static Cat
+        // Enemy Type 1: Static Cat
         function createEnemyType1(x, y, z) {
-            // Use fallback procedural cat if model fails to load
             const group = new THREE.Group();
             const body = new THREE.Mesh(
                 new THREE.SphereGeometry(0.6, 16, 16),
@@ -887,10 +953,12 @@
         }
 
         function startGame() {
+            playSound('click', 0.6);
             resetGameState();
             document.getElementById('startScreen').classList.add('hidden');
             document.getElementById('gameOverScreen').classList.add('hidden');
             document.getElementById('winScreen').classList.add('hidden');
+            playBackgroundMusic();
         }
 
         function restartGame() {
@@ -907,6 +975,8 @@
 
         function showGameOver() {
             gameOver = true;
+            stopBackgroundMusic();
+            playSound('gameover', 0.8);
             console.log('[DEBUG] showGameOver called - gameOver set to true');
             document.getElementById('finalScore').textContent = score;
             document.getElementById('distance').textContent = Math.abs(Math.floor(ball.position.z));
@@ -1037,6 +1107,7 @@
                             if (keys['Space']) {
                                 ballVelocity.y = jumpForce;
                                 onGround = false;
+                                playSound('jump', 0.6);
                             }
                         }
                     }
@@ -1165,6 +1236,7 @@
                     if (now - enemy.lastShot > enemy.shootInterval) {
                         const dir = ball.position.clone().sub(enemy.mesh.position).normalize();
                         createBullet(enemy.mesh.position.x, enemy.mesh.position.y, enemy.mesh.position.z, dir);
+                        playSound('shoot', 0.5);
                         enemy.lastShot = now;
                     }
                 }
@@ -1175,6 +1247,7 @@
                 // Check collision with ball
                 if (ballBox.intersectsBox(enemy.box)) {
                     lives--;
+                    playSoundWithCooldown('hit', 200);
                     updateUI();
                     if (lives <= 0) {
                         showGameOver();
@@ -1231,6 +1304,7 @@
                         collectible.collected = true;
                         collectible.mesh.visible = false;
                         score += 100;
+                        playSound('collect', 0.7);
                         updateUI();
                     }
                 }
@@ -1245,6 +1319,7 @@
             if (ball.position.y < -20 || Math.abs(ball.position.x) > 30) {
                 console.log('[DEBUG] Fall detected at y =', ball.position.y, 'x =', ball.position.x, 'lives before:', lives);
                 lives--;
+                playSoundWithCooldown('fall', 200);
                 updateUI();
                 if (lives <= 0) {
                     console.log('[DEBUG] Lives = 0, calling showGameOver()');
