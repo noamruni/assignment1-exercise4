@@ -39,8 +39,8 @@ Build in order (easiest → most complex). Commit after each checked-off feature
 - [x] Visual warning before fall (shake / color change)
 
 ### 6) Moving Platforms (6%)
-- [ ] 6% of platforms move up and down
-- [ ] Speed and amplitude tuned for fair gameplay
+- [x] 6% of platforms move up and down
+- [x] Speed and amplitude tuned for fair gameplay
 
 ### 7) Enemy Spawning (5%, weighted types)
 - [ ] 5% of platforms have an enemy
