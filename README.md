@@ -35,8 +35,8 @@ Build in order (easiest → most complex). Commit after each checked-off feature
 - [x] **Bonus**: Random platforms marked with +50 bonus labels award points when landed on
 
 ### 5) Falling Platforms
-- [ ] Standing on a platform > 4 seconds makes it fall
-- [ ] Visual warning before fall (shake / color change)
+- [x] Standing on a platform > 4 seconds makes it fall
+- [x] Visual warning before fall (shake / color change)
 
 ### 6) Moving Platforms (6%)
 - [ ] 6% of platforms move up and down
