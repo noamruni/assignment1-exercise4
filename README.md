@@ -61,10 +61,10 @@ Build in order (easiest → most complex). Commit after each checked-off feature
 - [ ] Visual indicators (glow / icon) for active powerup timer
 
 ### 10) Visual Upgrade (image assets)
-- [ ] Background image
-- [ ] Player sprite / texture
-- [ ] Enemy sprites (one per type)
-- [ ] Platform texture
+- [x] Player sprite / texture (enhanced ball with metallic glow)
+- [x] Enemy sprites (enhanced obstacle colors and glows)
+- [x] Platform texture (enhanced materials and metallic finishes)
+- [x] **Bonus**: Atmospheric lighting enhancements and color-coded entity system
 
 ### 11) Audio Upgrade
 - [ ] Background music loop
