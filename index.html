@@ -396,11 +396,8 @@
         function startGame() {
             resetGameState();
             document.getElementById('startScreen').classList.add('hidden');
-            document.getElementById('startScreen').style.display = 'none';
             document.getElementById('gameOverScreen').classList.add('hidden');
-            document.getElementById('gameOverScreen').style.display = 'none';
             document.getElementById('winScreen').classList.add('hidden');
-            document.getElementById('winScreen').style.display = 'none';
         }
 
         function restartGame() {
@@ -408,11 +405,8 @@
 
             // Hide all screens
             document.getElementById('startScreen').classList.add('hidden');
-            document.getElementById('startScreen').style.display = 'none';
             document.getElementById('gameOverScreen').classList.add('hidden');
-            document.getElementById('gameOverScreen').style.display = 'none';
             document.getElementById('winScreen').classList.add('hidden');
-            document.getElementById('winScreen').style.display = 'none';
         }
 
         function showGameOver() {
@@ -420,14 +414,12 @@
             document.getElementById('finalScore').textContent = score;
             document.getElementById('distance').textContent = Math.abs(Math.floor(ball.position.z));
             document.getElementById('gameOverScreen').classList.remove('hidden');
-            document.getElementById('gameOverScreen').style.display = 'flex';
         }
 
         function showWin() {
             gameOver = true;
             document.getElementById('winScore').textContent = score;
             document.getElementById('winScreen').classList.remove('hidden');
-            document.getElementById('winScreen').style.display = 'flex';
         }
 
         function updateUI() {
