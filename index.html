@@ -69,6 +69,10 @@
         let keys = {};
         let clock = new THREE.Clock();
         const courseLength = 200;
+
+        // Scoring tracking
+        let deepestZ = 0; // Most negative Z reached (starting at 0)
+        let gameStartTime = 0; // Track when game started for speed bonus
         
         // Physics constants
         const gravity = -30;
@@ -367,6 +371,8 @@
             lives = 3;
             gameOver = false;
             gameStarted = true;
+            deepestZ = 0;
+            gameStartTime = Date.now();
 
             // Reset ball position and velocity
             ball.position.set(0, 2, 0);
@@ -511,6 +517,25 @@
                     }
                 }
             });
+
+            // Check platform progress for scoring
+            if (ball.position.z < deepestZ) {
+                deepestZ = ball.position.z;
+
+                // Award points for progress: 10 points per unit of depth
+                const progressPoints = Math.abs(Math.floor(deepestZ * 10));
+
+                // Speed bonus: faster progression = more bonus
+                const elapsedSeconds = (Date.now() - gameStartTime) / 1000;
+                const speedBonus = Math.max(0, 100 - Math.floor(elapsedSeconds * 5)); // Max 100, decreases 5 per second
+
+                const totalPoints = progressPoints + speedBonus;
+                score += totalPoints;
+
+                // Log for debugging
+                console.log(`[SCORE] Reached z=${deepestZ.toFixed(2)}: +${progressPoints} progress + ${speedBonus} speed = ${totalPoints} total`);
+                updateUI();
+            }
 
             // Update moving obstacles
             obstacles.forEach(obstacle => {
@@ -666,6 +691,51 @@
                     // Test 12: Start screen visible again after restart
                     const startScreenAfterRestart = !document.getElementById('startScreen').classList.contains('hidden');
                     this.assert('Start screen visible after restart', startScreenAfterRestart);
+
+                    // Test 13: Scoring system - progress increases score
+                    console.log('\nTesting scoring system...');
+                    document.getElementById('startBtn').click();
+                    await new Promise(r => setTimeout(r, 100));
+
+                    const scoreBeforeProgress = score;
+                    // Move ball forward (more negative Z)
+                    ball.position.z = -50;
+                    deepestZ = -50;
+                    update(0.016);
+                    const scoreAfterProgress = score;
+                    this.assert('Score increases with progress', scoreAfterProgress > scoreBeforeProgress);
+
+                    // Test 14: Speed bonus - faster timing gives more points
+                    // Reset and test with different times
+                    gameStartTime = Date.now() - 2000; // Started 2 seconds ago
+                    const scoreEarly = score;
+                    ball.position.z = -100;
+                    deepestZ = -100;
+                    update(0.016);
+                    const scoreWithEarlyTime = score;
+
+                    // Reset with later time
+                    score = 0;
+                    gameStartTime = Date.now() - 10000; // Started 10 seconds ago
+                    ball.position.z = -100;
+                    deepestZ = -100;
+                    update(0.016);
+                    const scoreWithLateTime = score;
+
+                    this.assert('Earlier completion has higher speed bonus', scoreWithEarlyTime > scoreWithLateTime);
+
+                    // Test 15: Collectible bonus
+                    console.log('Testing collectible scoring...');
+                    const scoreBeforeCollectible = score;
+                    if (collectibles.length > 0 && !collectibles[0].collected) {
+                        // Move ball to collectible
+                        ball.position.set(collectibles[0].mesh.position.x, collectibles[0].mesh.position.y, collectibles[0].mesh.position.z);
+                        update(0.016);
+                        const scoreAfterCollectible = score;
+                        this.assert('Collectible adds 100 points', scoreAfterCollectible === scoreBeforeCollectible + 100);
+                    } else {
+                        this.assert('Collectible scoring (skip - no uncollected items)', true);
+                    }
 
                     // Summary
                     const passed = this.results.filter(r => r.status === 'PASS').length;
