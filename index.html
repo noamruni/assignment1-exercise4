@@ -82,6 +82,8 @@
         let scene, camera, renderer;
         let ball, ballVelocity = new THREE.Vector3();
         let platforms = [], obstacles = [], collectibles = [];
+        let platformBonuses = []; // Track which platforms have bonuses
+        let collectedBonuses = new Set(); // Track which bonuses we've collected this game
         let score = 0, lives = 3;
         let gameStarted = false, gameOver = false;
         let keys = {};
@@ -254,7 +256,10 @@
             for (let i = 0; i < 20; i++) {
                 const z = -15 - i * 10;
                 const platformNumber = (i + 1) * 10;
+                const hasBonus = Math.random() > 0.7;
+                const bonusText = hasBonus ? ' +50' : '';
                 let x = (Math.random() - 0.5) * 8;
+                const platformIndex = platforms.length;
 
                 if (i % 3 === 0) {
                     // Gap section - smaller platforms
@@ -270,12 +275,12 @@
                     }
 
                     createPlatform(leftX, 0, z, 4, 1, 8, 0x6c5ce7);
+                    platformBonuses.push(hasBonus ? 50 : 0);
                     createPlatform(rightX, 0, z, 4, 1, 8, 0x6c5ce7);
+                    platformBonuses.push(hasBonus ? 50 : 0);
 
-                    if (i % 20 === 0) {
-                        createPlatformLabel(platformNumber.toString(), leftX, 0, z);
-                        createPlatformLabel(platformNumber.toString(), rightX, 0, z);
-                    }
+                    createPlatformLabel(platformNumber.toString() + bonusText, leftX, 0, z);
+                    createPlatformLabel(platformNumber.toString() + bonusText, rightX, 0, z);
                 } else {
                     // Variable width based on difficulty progression
                     const difficultyFactor = Math.max(0.5, 1 - i * 0.02);
@@ -288,10 +293,9 @@
                     }
 
                     createPlatform(x, 0, z, width, 1, 8, 0x4a90d9);
+                    platformBonuses.push(hasBonus ? 50 : 0);
 
-                    if (i % 10 === 0) {
-                        createPlatformLabel(platformNumber.toString(), x, 0, z);
-                    }
+                    createPlatformLabel(platformNumber.toString() + bonusText, x, 0, z);
                 }
 
                 // Add obstacles
@@ -360,11 +364,14 @@
             ctx.strokeRect(10, 10, 236, 236);
 
             const texture = new THREE.CanvasTexture(canvas);
-            const material = new THREE.SpriteMaterial({ map: texture });
-            const sprite = new THREE.Sprite(material);
-            sprite.position.set(x, y + 2, z);
-            sprite.scale.set(4, 4, 1);
-            scene.add(sprite);
+            const material = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
+
+            // Create a flat plane mesh that sits on the platform surface
+            const geometry = new THREE.PlaneGeometry(4, 4);
+            const labelMesh = new THREE.Mesh(geometry, material);
+            labelMesh.position.set(x, y + 0.6, z);
+            labelMesh.rotation.x = -Math.PI / 2; // Rotate to lay flat on platform
+            scene.add(labelMesh);
         }
 
         function createPlatform(x, y, z, width, height, depth, color) {
@@ -527,6 +534,7 @@
             gameStarted = true;
             deepestZ = 0;
             gameStartTime = Date.now();
+            collectedBonuses.clear();
 
             // Reset ball position and velocity
             ball.position.set(0, 2, 0);
@@ -651,7 +659,7 @@
             let onGround = false;
             const ballBox = new THREE.Box3().setFromObject(ball);
 
-            platforms.forEach(platform => {
+            platforms.forEach((platform, platformIndex) => {
                 platform.box.setFromObject(platform.mesh);
                 if (ballBox.intersectsBox(platform.box)) {
                     // Check if ball is above platform (approaching from top)
@@ -670,6 +678,15 @@
                             ball.position.y = platform.mesh.position.y + platform.mesh.geometry.parameters.height / 2 + 1;
                             ballVelocity.y = 0;
                             onGround = true;
+
+                            // Collect platform bonus if available and not already collected
+                            const bonus = platformBonuses[platformIndex];
+                            if (bonus > 0 && !collectedBonuses.has(platformIndex)) {
+                                score += bonus;
+                                collectedBonuses.add(platformIndex);
+                                updateUI();
+                                console.log(`[BONUS] Collected +${bonus} on platform ${platformIndex}`);
+                            }
 
                             // Jump
                             if (keys['Space']) {

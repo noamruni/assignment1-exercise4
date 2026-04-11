@@ -29,9 +29,10 @@ Build in order (easiest → most complex). Commit after each checked-off feature
 - [x] Scores persist after page refresh
 
 ### 4) Platform Labels + Layout Rules
-- [ ] Platforms divisible by 10 show a visible number label (`10`, `20`, …)
-- [ ] Some platforms are wider than default
-- [ ] No two platforms overlap or touch
+- [x] Platforms divisible by 10 show a visible number label (`10`, `20`, …)
+- [x] Some platforms are wider than default
+- [x] No two platforms overlap or touch
+- [x] **Bonus**: Random platforms marked with +50 bonus labels award points when landed on
 
 ### 5) Falling Platforms
 - [ ] Standing on a platform > 4 seconds makes it fall
