@@ -296,6 +296,15 @@
                     platformBonuses.push(hasBonus ? 50 : 0);
 
                     createPlatformLabel(platformNumber.toString() + bonusText, x, 0, z);
+
+                    // 6% chance to make platform moving (skip first few and gap platforms)
+                    if (i > 2 && i < 18 && Math.random() < 0.06) {
+                        const lastPlatform = platforms[platforms.length - 1];
+                        lastPlatform.isMoving = true;
+                        lastPlatform.moveSpeed = 1 + Math.random() * 0.5;
+                        lastPlatform.mesh.material.emissive.setHex(0x0033FF);
+                        lastPlatform.mesh.material.emissiveIntensity = 0.3;
+                    }
                 }
 
                 // Add obstacles
@@ -391,7 +400,12 @@
                 box: new THREE.Box3().setFromObject(platform),
                 standingTime: 0,
                 isFalling: false,
-                originalY: y
+                originalY: y,
+                isMoving: false,
+                startY: y - 2,
+                endY: y + 2,
+                moveSpeed: 1.5,
+                moveDirection: 1
             });
 
             // Add edge glow
@@ -560,13 +574,22 @@
                 }
             });
 
-            // Reset falling platforms
+            // Reset falling and moving platforms
             platforms.forEach(platform => {
                 platform.standingTime = 0;
                 platform.isFalling = false;
                 platform.mesh.position.y = platform.originalY;
-                platform.mesh.material.emissive.setHex(0x000000);
-                platform.mesh.material.emissiveIntensity = 0;
+                platform.moveDirection = 1;
+
+                // Reset emissive (removes red warning or blue moving indicator)
+                if (platform.isMoving) {
+                    platform.mesh.material.emissive.setHex(0x0033FF);
+                    platform.mesh.material.emissiveIntensity = 0.3;
+                } else {
+                    platform.mesh.material.emissive.setHex(0x000000);
+                    platform.mesh.material.emissiveIntensity = 0;
+                }
+
                 platform.box.setFromObject(platform.mesh);
                 if (!platform.mesh.parent) {
                     scene.add(platform.mesh);
@@ -814,6 +837,26 @@
                     }
                 }
             }
+
+            // Update moving platforms
+            platforms.forEach(platform => {
+                if (platform.isMoving && !platform.isFalling) {
+                    platform.mesh.position.y += platform.moveDirection * platform.moveSpeed * delta;
+
+                    // Reverse direction at boundaries
+                    if (platform.mesh.position.y >= platform.endY) {
+                        platform.moveDirection = -1;
+                        platform.mesh.position.y = platform.endY;
+                    }
+                    if (platform.mesh.position.y <= platform.startY) {
+                        platform.moveDirection = 1;
+                        platform.mesh.position.y = platform.startY;
+                    }
+
+                    // Update collision box
+                    platform.box.setFromObject(platform.mesh);
+                }
+            });
 
             // Collectibles
             collectibles.forEach(collectible => {
