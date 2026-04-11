@@ -411,9 +411,13 @@
 
         function showGameOver() {
             gameOver = true;
+            console.log('[DEBUG] showGameOver called - gameOver set to true');
+            console.log('[DEBUG] gameOverScreen element:', document.getElementById('gameOverScreen'));
+            console.log('[DEBUG] gameOverScreen classes before:', document.getElementById('gameOverScreen').className);
             document.getElementById('finalScore').textContent = score;
             document.getElementById('distance').textContent = Math.abs(Math.floor(ball.position.z));
             document.getElementById('gameOverScreen').classList.remove('hidden');
+            console.log('[DEBUG] gameOverScreen classes after:', document.getElementById('gameOverScreen').className);
         }
 
         function showWin() {
@@ -544,11 +548,14 @@
 
             // Fall off - respawn or game over
             if (ball.position.y < -20) {
+                console.log('[DEBUG] Fall detected at y =', ball.position.y, 'lives before:', lives);
                 lives--;
                 updateUI();
                 if (lives <= 0) {
+                    console.log('[DEBUG] Lives = 0, calling showGameOver()');
                     showGameOver();
                 } else {
+                    console.log('[DEBUG] Respawning, lives remaining:', lives);
                     ball.position.set(0, 2, Math.min(ball.position.z + 15, 0));
                     ballVelocity.set(0, 0, 0);
                 }
@@ -570,6 +577,98 @@
             const delta = Math.min(clock.getDelta(), 0.1);
             update(delta);
             renderer.render(scene, camera);
+        }
+
+        // Debug module for automated testing
+        if (new URLSearchParams(location.search).get('debug') === '1') {
+            window.GameDebug = {
+                results: [],
+                assert(name, condition) {
+                    const status = condition ? 'PASS' : 'FAIL';
+                    this.results.push({ name, status });
+                    console[condition ? 'log' : 'error'](`[TEST ${status}] ${name}`);
+                },
+                async runAll() {
+                    console.log('=== Running GameDebug Tests ===\n');
+
+                    // Test 1: Start screen is visible initially
+                    const startScreenInitial = !document.getElementById('startScreen').classList.contains('hidden');
+                    this.assert('Start screen visible on load', startScreenInitial);
+
+                    // Test 2: Game over screen is hidden initially
+                    const gameOverInitial = document.getElementById('gameOverScreen').classList.contains('hidden');
+                    this.assert('Game over screen hidden on load', gameOverInitial);
+
+                    // Test 3: Click start button
+                    console.log('Clicking start button...');
+                    document.getElementById('startBtn').click();
+                    await new Promise(r => setTimeout(r, 100));
+                    const startScreenAfterClick = document.getElementById('startScreen').classList.contains('hidden');
+                    this.assert('Start screen hidden after clicking start', startScreenAfterClick);
+
+                    // Test 4: Game started flag
+                    this.assert('gameStarted flag is true', gameStarted === true);
+
+                    // Test 5: Score and lives reset
+                    this.assert('Score reset to 0', score === 0);
+                    this.assert('Lives reset to 3', lives === 3);
+
+                    // Test 6: Ball position reset
+                    this.assert('Ball at start position',
+                        ball.position.x === 0 && ball.position.y === 2 && ball.position.z === 0);
+
+                    // Test 7: Simulate falling off - drop ball below -20
+                    console.log('Simulating fall...');
+                    ballVelocity.y = -50; // High downward velocity
+                    ball.position.y = -5; // Start above the threshold
+
+                    // Need multiple frames to fall through and trigger collision
+                    for (let i = 0; i < 10; i++) {
+                        update(0.016);
+                        console.log(`Frame ${i}: ball.y=${ball.position.y}, gameOver=${gameOver}, lives=${lives}`);
+                        if (gameOver) break;
+                    }
+                    this.assert('Game over triggered when falling', gameOver === true);
+
+                    // Test 8: Game over screen visible after fall
+                    await new Promise(r => setTimeout(r, 50));
+                    const gameOverVisible = !document.getElementById('gameOverScreen').classList.contains('hidden');
+                    this.assert('Game over screen visible after death', gameOverVisible);
+
+                    // Test 9: Restart button exists and is clickable
+                    const restartBtn = document.getElementById('restartBtn');
+                    this.assert('Restart button exists', restartBtn !== null);
+
+                    // Test 10: Click restart
+                    console.log('Clicking restart button...');
+                    restartBtn.click();
+                    await new Promise(r => setTimeout(r, 100));
+                    this.assert('Game restarted (gameOver = false)', gameOver === false);
+
+                    // Test 11: State clean after restart
+                    this.assert('Score reset after restart', score === 0);
+                    this.assert('Lives reset after restart', lives === 3);
+                    this.assert('Ball respawned at start',
+                        ball.position.x === 0 && ball.position.y === 2 && ball.position.z === 0);
+
+                    // Test 12: Start screen visible again after restart
+                    const startScreenAfterRestart = !document.getElementById('startScreen').classList.contains('hidden');
+                    this.assert('Start screen visible after restart', startScreenAfterRestart);
+
+                    // Summary
+                    const passed = this.results.filter(r => r.status === 'PASS').length;
+                    console.log(`\n=== ${passed}/${this.results.length} tests passed ===`);
+                    if (passed !== this.results.length) {
+                        console.log('\nFailed tests:');
+                        this.results.filter(r => r.status === 'FAIL').forEach(r => {
+                            console.error(`  ✗ ${r.name}`);
+                        });
+                    }
+                }
+            };
+
+            // Run tests after game initializes
+            setTimeout(() => window.GameDebug.runAll(), 500);
         }
 
         // Start
