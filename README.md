@@ -14,19 +14,19 @@ Publish it on Netlify drop when done.
 Build in order (easiest → most complex). Commit after each checked-off feature works.
 
 ### 1) Core Game Flow
-- [ ] `Start` button initialises game; state resets cleanly on restart
-- [ ] Death (fall / enemy) shows `GAME OVER` + `Play again` button
-- [ ] No broken state after multiple start → die → restart cycles
+- [x] `Start` button initialises game; state resets cleanly on restart
+- [x] Death (fall / enemy) shows `GAME OVER` + `Play again` button
+- [x] No broken state after multiple start → die → restart cycles
 
 ### 2) Scoring System (speed rewarded)
-- [ ] Live score displayed during gameplay
-- [ ] Score increases with upward progress (platform reached)
-- [ ] Time-based bonus: faster climbs yield higher score
+- [x] Live score displayed during gameplay
+- [x] Score increases with upward progress (platform reached)
+- [x] Time-based bonus: faster climbs yield higher score
 
 ### 3) Leaderboard (Top 10)
-- [ ] Top 10 scores saved in `localStorage`
-- [ ] Leaderboard rendered on game over screen
-- [ ] Scores persist after page refresh
+- [x] Top 10 scores saved in `localStorage`
+- [x] Leaderboard rendered on game over screen
+- [x] Scores persist after page refresh
 
 ### 4) Platform Labels + Layout Rules
 - [ ] Platforms divisible by 10 show a visible number label (`10`, `20`, …)

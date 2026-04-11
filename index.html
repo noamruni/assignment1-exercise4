@@ -28,20 +28,38 @@
     </div>
     
     <div id="startScreen" class="fixed inset-0 bg-black/80 flex items-center justify-center z-20">
-        <div class="text-center text-white">
+        <div class="text-center text-white max-h-[90vh] overflow-y-auto">
             <h1 class="text-5xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-cyan-500">Ball Runner</h1>
             <p class="text-xl mb-8 text-gray-300">Roll through the obstacle course!</p>
             <button id="startBtn" class="px-8 py-4 bg-gradient-to-r from-pink-500 to-cyan-500 rounded-full text-xl font-bold hover:scale-105 transition-transform">
                 Start Game
             </button>
+
+            <div class="mt-8 bg-black/50 rounded-lg p-4 inline-block">
+                <h2 class="text-2xl font-bold mb-4 text-cyan-400">🏆 Top 10 Leaderboard</h2>
+                <table class="text-left text-sm">
+                    <thead class="border-b border-cyan-400">
+                        <tr>
+                            <th class="pr-4">Rank</th>
+                            <th class="pr-4">Name</th>
+                            <th class="pr-4">Score</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leaderboardBody">
+                        <tr><td colspan="3" class="text-gray-400">No scores yet</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 
     <div id="gameOverScreen" class="fixed inset-0 bg-black/80 hidden items-center justify-center z-20">
-        <div class="text-center text-white">
+        <div class="text-center text-white max-h-[90vh] overflow-y-auto">
             <h1 class="text-5xl font-bold mb-4 text-red-500">Game Over</h1>
             <p class="text-2xl mb-2">Final Score: <span id="finalScore">0</span></p>
             <p class="text-xl mb-8 text-gray-400">Distance: <span id="distance">0</span>m</p>
+
             <button id="restartBtn" class="px-8 py-4 bg-gradient-to-r from-pink-500 to-cyan-500 rounded-full text-xl font-bold hover:scale-105 transition-transform">
                 Play Again
             </button>
@@ -80,6 +98,68 @@
         const jumpForce = 15;
         const friction = 0.98;
         const maxSpeed = 20;
+
+        // Leaderboard management
+        const LEADERBOARD_KEY = 'ballRunnerLeaderboard';
+        const MAX_SCORES = 10;
+
+        // Funny name generator
+        const adjectives = ['Speedy', 'Mighty', 'Wild', 'Crazy', 'Fearless', 'Sneaky', 'Bouncy', 'Slick', 'Thunder', 'Cosmic'];
+        const nouns = ['Roller', 'Runner', 'Champion', 'Hero', 'Legend', 'Beast', 'Phoenix', 'Ninja', 'Comet', 'Shadow'];
+
+        function generateFunnyName() {
+            const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
+            const noun = nouns[Math.floor(Math.random() * nouns.length)];
+            const num = Math.floor(Math.random() * 1000);
+            return `${adj} ${noun} ${num}`;
+        }
+
+        function getLeaderboard() {
+            const stored = localStorage.getItem(LEADERBOARD_KEY);
+            return stored ? JSON.parse(stored) : [];
+        }
+
+        function saveLeaderboard(scores) {
+            localStorage.setItem(LEADERBOARD_KEY, JSON.stringify(scores));
+        }
+
+        function addScore(scoreValue) {
+            const leaderboard = getLeaderboard();
+            leaderboard.push({
+                name: generateFunnyName(),
+                score: scoreValue,
+                date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+            });
+
+            // Sort by score descending
+            leaderboard.sort((a, b) => b.score - a.score);
+
+            // Keep only top MAX_SCORES
+            const topScores = leaderboard.slice(0, MAX_SCORES);
+            saveLeaderboard(topScores);
+
+            console.log('[LEADERBOARD] Added score:', scoreValue, 'Position:', leaderboard.indexOf(leaderboard.find(s => s.score === scoreValue && s.date === leaderboard.find(s => s.score === scoreValue).date)) + 1);
+            return leaderboard.indexOf(leaderboard.find(s => s.score === scoreValue && s.date === leaderboard.find(s => s.score === scoreValue).date)) + 1;
+        }
+
+        function renderLeaderboard() {
+            const leaderboard = getLeaderboard();
+            const tbody = document.getElementById('leaderboardBody');
+
+            if (leaderboard.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-gray-400">No scores yet</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = leaderboard.map((entry, index) => `
+                <tr class="border-b border-gray-700 ${index === 0 ? 'text-yellow-400 font-bold' : index === 1 ? 'text-gray-300' : index === 2 ? 'text-orange-400' : ''}">
+                    <td class="pr-4 py-1">#${index + 1}</td>
+                    <td class="pr-4 py-1">${entry.name || 'Player'}</td>
+                    <td class="pr-4 py-1">${entry.score}</td>
+                    <td class="py-1 text-xs text-gray-400">${entry.date}</td>
+                </tr>
+            `).join('');
+        }
 
         // Initialize Three.js
         function init() {
@@ -143,6 +223,9 @@
             document.getElementById('startBtn').addEventListener('click', startGame);
             document.getElementById('restartBtn').addEventListener('click', restartGame);
             document.getElementById('playAgainBtn').addEventListener('click', restartGame);
+
+            // Render leaderboard on start screen
+            renderLeaderboard();
 
             // Start render loop
             animate();
@@ -409,26 +492,35 @@
         function restartGame() {
             resetGameState();
 
-            // Hide all screens
-            document.getElementById('startScreen').classList.add('hidden');
+            // Hide game over and win screens, show start screen
             document.getElementById('gameOverScreen').classList.add('hidden');
             document.getElementById('winScreen').classList.add('hidden');
+            document.getElementById('startScreen').classList.remove('hidden');
+
+            // Render leaderboard on start screen
+            renderLeaderboard();
         }
 
         function showGameOver() {
             gameOver = true;
             console.log('[DEBUG] showGameOver called - gameOver set to true');
-            console.log('[DEBUG] gameOverScreen element:', document.getElementById('gameOverScreen'));
-            console.log('[DEBUG] gameOverScreen classes before:', document.getElementById('gameOverScreen').className);
             document.getElementById('finalScore').textContent = score;
             document.getElementById('distance').textContent = Math.abs(Math.floor(ball.position.z));
+
+            // Add to leaderboard and render
+            addScore(score);
+            renderLeaderboard();
+
             document.getElementById('gameOverScreen').classList.remove('hidden');
-            console.log('[DEBUG] gameOverScreen classes after:', document.getElementById('gameOverScreen').className);
         }
 
         function showWin() {
             gameOver = true;
             document.getElementById('winScore').textContent = score;
+
+            // Add to leaderboard
+            addScore(score);
+
             document.getElementById('winScreen').classList.remove('hidden');
         }
 
@@ -736,6 +828,42 @@
                     } else {
                         this.assert('Collectible scoring (skip - no uncollected items)', true);
                     }
+
+                    // Test 16: Leaderboard persistence
+                    console.log('\nTesting leaderboard...');
+                    // Clear leaderboard
+                    localStorage.removeItem(LEADERBOARD_KEY);
+                    let lb = getLeaderboard();
+                    this.assert('Leaderboard empty after clear', lb.length === 0);
+
+                    // Add some scores
+                    addScore(500);
+                    addScore(300);
+                    addScore(700);
+                    lb = getLeaderboard();
+                    this.assert('Scores saved to leaderboard', lb.length === 3);
+
+                    // Test 17: Scores sorted descending
+                    this.assert('Scores sorted descending', lb[0].score === 700 && lb[1].score === 500 && lb[2].score === 300);
+
+                    // Test 18: Leaderboard persists after reload (simulated)
+                    const lbBefore = getLeaderboard();
+                    saveLeaderboard(lbBefore);
+                    const lbAfter = getLeaderboard();
+                    this.assert('Leaderboard persists in localStorage', JSON.stringify(lbBefore) === JSON.stringify(lbAfter));
+
+                    // Test 19: Leaderboard limited to top 10
+                    localStorage.removeItem(LEADERBOARD_KEY);
+                    for (let i = 0; i < 15; i++) {
+                        addScore(1000 - i * 10);
+                    }
+                    lb = getLeaderboard();
+                    this.assert('Leaderboard limited to top 10', lb.length === 10);
+
+                    // Test 20: Leaderboard renders without errors
+                    renderLeaderboard();
+                    const tbody = document.getElementById('leaderboardBody');
+                    this.assert('Leaderboard renders', tbody.children.length > 0);
 
                     // Summary
                     const passed = this.results.filter(r => r.status === 'PASS').length;
