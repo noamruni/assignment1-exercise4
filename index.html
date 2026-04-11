@@ -82,6 +82,7 @@
         let scene, camera, renderer;
         let ball, ballVelocity = new THREE.Vector3();
         let platforms = [], obstacles = [], collectibles = [];
+        let enemies = [], bullets = [];
         let platformBonuses = []; // Track which platforms have bonuses
         let collectedBonuses = new Set(); // Track which bonuses we've collected this game
         let score = 0, lives = 3;
@@ -164,10 +165,130 @@
         }
 
         // Initialize Three.js
+        function createStarfieldBackground() {
+            // Create procedural starfield background
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024;
+            canvas.height = 1024;
+            const ctx = canvas.getContext('2d');
+
+            // Dark space background
+            ctx.fillStyle = '#0a0a1a';
+            ctx.fillRect(0, 0, 1024, 1024);
+
+            // Create small stars (20% size with radiant glow)
+            const starCount = 300;
+            const starColors = [
+                { hex: '#FFFFFF', rgba: 'rgba(255, 255, 255' },
+                { hex: '#AACCFF', rgba: 'rgba(170, 204, 255' },
+                { hex: '#FFDDAA', rgba: 'rgba(255, 221, 170' }
+            ];
+
+            for (let i = 0; i < starCount; i++) {
+                const x = Math.random() * 1024;
+                const y = Math.random() * 1024;
+                const size = Math.random() * 0.4; // 20% of original size
+                const brightness = Math.random() * 0.8 + 0.5;
+
+                // Pick random color
+                const colorObj = starColors[Math.floor(Math.random() * starColors.length)];
+
+                // Add radiant glow around star
+                const glowGradient = ctx.createRadialGradient(x, y, 0, x, y, 8);
+                glowGradient.addColorStop(0, colorObj.hex);
+                glowGradient.addColorStop(0.3, colorObj.rgba + ', 0.6)');
+                glowGradient.addColorStop(1, 'rgba(200, 200, 255, 0)');
+
+                ctx.fillStyle = glowGradient;
+                ctx.globalAlpha = brightness;
+                ctx.beginPath();
+                ctx.arc(x, y, 8, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Draw star center
+                ctx.fillStyle = colorObj.hex;
+                ctx.fillRect(x - size/2, y - size/2, size, size);
+                ctx.globalAlpha = 1;
+            }
+
+            // Draw Moon (upper right)
+            const moonX = 800;
+            const moonY = 150;
+            const moonRadius = 60;
+
+            // Moon gradient
+            const moonGradient = ctx.createRadialGradient(moonX - 20, moonY - 20, 0, moonX, moonY, moonRadius);
+            moonGradient.addColorStop(0, '#FFFACD');
+            moonGradient.addColorStop(0.8, '#F0E68C');
+            moonGradient.addColorStop(1, '#DAA520');
+            ctx.fillStyle = moonGradient;
+            ctx.beginPath();
+            ctx.arc(moonX, moonY, moonRadius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Moon craters
+            ctx.fillStyle = 'rgba(150, 140, 100, 0.3)';
+            ctx.beginPath();
+            ctx.arc(moonX - 20, moonY - 15, 8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(moonX + 15, moonY + 20, 6, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(moonX - 5, moonY + 30, 5, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Draw Saturn (lower left)
+            const saturnX = 250;
+            const saturnY = 700;
+            const saturnRadius = 50;
+
+            // Saturn rings
+            ctx.strokeStyle = 'rgba(200, 180, 140, 0.8)';
+            ctx.lineWidth = 15;
+            ctx.beginPath();
+            ctx.ellipse(saturnX, saturnY, 90, 25, -0.3, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // Saturn body
+            const saturnGradient = ctx.createRadialGradient(saturnX - 15, saturnY - 15, 0, saturnX, saturnY, saturnRadius);
+            saturnGradient.addColorStop(0, '#FFD700');
+            saturnGradient.addColorStop(0.7, '#FFA500');
+            saturnGradient.addColorStop(1, '#FF8C00');
+            ctx.fillStyle = saturnGradient;
+            ctx.beginPath();
+            ctx.arc(saturnX, saturnY, saturnRadius, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Saturn stripes
+            ctx.strokeStyle = 'rgba(200, 100, 50, 0.3)';
+            ctx.lineWidth = 5;
+            for (let i = -3; i <= 3; i++) {
+                ctx.beginPath();
+                ctx.moveTo(saturnX - saturnRadius, saturnY + i * 10);
+                ctx.lineTo(saturnX + saturnRadius, saturnY + i * 10);
+                ctx.stroke();
+            }
+
+            // Add nebula effect
+            const gradient = ctx.createLinearGradient(0, 0, 1024, 1024);
+            gradient.addColorStop(0, 'rgba(100, 50, 150, 0.1)');
+            gradient.addColorStop(0.5, 'rgba(50, 100, 150, 0.05)');
+            gradient.addColorStop(1, 'rgba(100, 50, 150, 0.1)');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 1024, 1024);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            return texture;
+        }
+
         function init() {
             // Scene
             scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x1a1a2e);
+
+            // Create starfield background texture
+            const starfieldTexture = createStarfieldBackground();
+            scene.background = starfieldTexture;
             scene.fog = new THREE.Fog(0x1a1a2e, 50, 150);
 
             // Camera
@@ -314,6 +435,18 @@
                         lastPlatform.moveSpeed = 1 + Math.random() * 0.5;
                         lastPlatform.mesh.material.emissive.setHex(0x0033FF);
                         lastPlatform.mesh.material.emissiveIntensity = 0.3;
+                    }
+
+                    // 5% chance to spawn enemy on platform
+                    if (i > 2 && i < 18 && Math.random() < 0.05) {
+                        const enemyType = Math.random();
+                        if (enemyType < 0.5) {
+                            createEnemyType1(x, 1.5, z); // 50% - Static cat
+                        } else if (enemyType < 0.9) {
+                            createEnemyType2(x, 1.5, z); // 40% - Patrolling dog
+                        } else {
+                            createEnemyType3(x, 2.5, z); // 10% - Shooting bird
+                        }
                     }
                 }
 
@@ -494,6 +627,213 @@
             });
         }
 
+        // Enemy Type 1: Static Cat
+        function createEnemyType1(x, y, z) {
+            const group = new THREE.Group();
+
+            // Body
+            const body = new THREE.Mesh(
+                new THREE.SphereGeometry(0.6, 16, 16),
+                new THREE.MeshStandardMaterial({
+                    color: 0xFF8C00,
+                    metalness: 0.3,
+                    emissive: 0x8B4500,
+                    emissiveIntensity: 0.2
+                })
+            );
+            group.add(body);
+
+            // Head
+            const head = new THREE.Mesh(
+                new THREE.SphereGeometry(0.4, 16, 16),
+                new THREE.MeshStandardMaterial({ color: 0xFF8C00 })
+            );
+            head.position.y = 0.8;
+            group.add(head);
+
+            // Ears
+            const earGeom = new THREE.ConeGeometry(0.15, 0.3, 3);
+            const earMat = new THREE.MeshStandardMaterial({ color: 0xFF6347 });
+            const leftEar = new THREE.Mesh(earGeom, earMat);
+            leftEar.position.set(-0.25, 1.1, 0);
+            const rightEar = new THREE.Mesh(earGeom, earMat);
+            rightEar.position.set(0.25, 1.1, 0);
+            group.add(leftEar, rightEar);
+
+            // Eyes
+            const eyeGeom = new THREE.SphereGeometry(0.1, 8, 8);
+            const eyeMat = new THREE.MeshBasicMaterial({ color: 0xFFFF00, emissive: 0xFFFF00 });
+            const leftEye = new THREE.Mesh(eyeGeom, eyeMat);
+            leftEye.position.set(-0.15, 0.85, 0.35);
+            const rightEye = new THREE.Mesh(eyeGeom, eyeMat);
+            rightEye.position.set(0.15, 0.85, 0.35);
+            group.add(leftEye, rightEye);
+
+            group.position.set(x, y, z);
+            scene.add(group);
+
+            enemies.push({
+                mesh: group,
+                box: new THREE.Box3().setFromObject(group),
+                type: 1
+            });
+        }
+
+        // Enemy Type 2: Patrolling Dog
+        function createEnemyType2(x, y, z) {
+            const group = new THREE.Group();
+
+            // Body
+            const body = new THREE.Mesh(
+                new THREE.BoxGeometry(0.8, 0.6, 1.2),
+                new THREE.MeshStandardMaterial({
+                    color: 0x8B7355,
+                    metalness: 0.2,
+                    emissive: 0x654321,
+                    emissiveIntensity: 0.2
+                })
+            );
+            group.add(body);
+
+            // Head
+            const head = new THREE.Mesh(
+                new THREE.BoxGeometry(0.5, 0.5, 0.7),
+                new THREE.MeshStandardMaterial({ color: 0x8B7355 })
+            );
+            head.position.set(0, 0, 0.8);
+            group.add(head);
+
+            // Snout
+            const snout = new THREE.Mesh(
+                new THREE.BoxGeometry(0.3, 0.25, 0.3),
+                new THREE.MeshStandardMaterial({ color: 0x9B8B6F })
+            );
+            snout.position.set(0, -0.1, 1.2);
+            group.add(snout);
+
+            // Four legs
+            const legGeom = new THREE.CylinderGeometry(0.12, 0.12, 0.6, 8);
+            const legMat = new THREE.MeshStandardMaterial({ color: 0x7B6345 });
+            const positions = [[-0.25, -0.4, -0.25], [0.25, -0.4, -0.25], [-0.25, -0.4, 0.25], [0.25, -0.4, 0.25]];
+            positions.forEach(pos => {
+                const leg = new THREE.Mesh(legGeom, legMat);
+                leg.position.set(pos[0], pos[1], pos[2]);
+                group.add(leg);
+            });
+
+            // Tail
+            const tail = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.08, 0.08, 0.5, 6),
+                new THREE.MeshStandardMaterial({ color: 0x7B6345 })
+            );
+            tail.position.set(0, 0.2, -0.7);
+            tail.rotation.z = 0.3;
+            group.add(tail);
+
+            // Eyes
+            const eyeGeom = new THREE.SphereGeometry(0.08, 8, 8);
+            const eyeMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+            const leftEye = new THREE.Mesh(eyeGeom, eyeMat);
+            leftEye.position.set(-0.15, 0.15, 1.0);
+            const rightEye = new THREE.Mesh(eyeGeom, eyeMat);
+            rightEye.position.set(0.15, 0.15, 1.0);
+            group.add(leftEye, rightEye);
+
+            group.position.set(x, y, z);
+            scene.add(group);
+
+            enemies.push({
+                mesh: group,
+                box: new THREE.Box3().setFromObject(group),
+                type: 2,
+                startX: x - 4,
+                endX: x + 4,
+                speed: 2 + Math.random() * 1.5,
+                direction: 1
+            });
+        }
+
+        // Enemy Type 3: Shooting Bird
+        function createEnemyType3(x, y, z) {
+            const group = new THREE.Group();
+
+            // Body
+            const body = new THREE.Mesh(
+                new THREE.SphereGeometry(0.5, 16, 16),
+                new THREE.MeshStandardMaterial({
+                    color: 0x8B6914,
+                    metalness: 0.4,
+                    emissive: 0x654321,
+                    emissiveIntensity: 0.2
+                })
+            );
+            group.add(body);
+
+            // Head
+            const head = new THREE.Mesh(
+                new THREE.SphereGeometry(0.35, 16, 16),
+                new THREE.MeshStandardMaterial({ color: 0x8B6914 })
+            );
+            head.position.y = 0.6;
+            group.add(head);
+
+            // Beak
+            const beak = new THREE.Mesh(
+                new THREE.ConeGeometry(0.1, 0.4, 8),
+                new THREE.MeshStandardMaterial({ color: 0xFFD700 })
+            );
+            beak.position.set(0, 0.5, 0.45);
+            beak.rotation.x = Math.PI / 2;
+            group.add(beak);
+
+            // Large eyes
+            const eyeGeom = new THREE.SphereGeometry(0.12, 8, 8);
+            const eyeMat = new THREE.MeshBasicMaterial({ color: 0xFF0000, emissive: 0xFF0000 });
+            const leftEye = new THREE.Mesh(eyeGeom, eyeMat);
+            leftEye.position.set(-0.18, 0.65, 0.25);
+            const rightEye = new THREE.Mesh(eyeGeom, eyeMat);
+            rightEye.position.set(0.18, 0.65, 0.25);
+            group.add(leftEye, rightEye);
+
+            // Wings
+            const wingGeom = new THREE.BoxGeometry(0.3, 0.15, 0.5);
+            const wingMat = new THREE.MeshStandardMaterial({ color: 0x654321 });
+            const leftWing = new THREE.Mesh(wingGeom, wingMat);
+            leftWing.position.set(-0.6, 0.3, 0);
+            const rightWing = new THREE.Mesh(wingGeom, wingMat);
+            rightWing.position.set(0.6, 0.3, 0);
+            group.add(leftWing, rightWing);
+
+            group.position.set(x, y, z);
+            scene.add(group);
+
+            enemies.push({
+                mesh: group,
+                box: new THREE.Box3().setFromObject(group),
+                type: 3,
+                lastShot: Date.now(),
+                shootInterval: 3000
+            });
+        }
+
+        function createBullet(x, y, z, direction) {
+            const geometry = new THREE.SphereGeometry(0.2, 8, 8);
+            const material = new THREE.MeshBasicMaterial({
+                color: 0xFF0000,
+                emissive: 0xFF0000
+            });
+            const bullet = new THREE.Mesh(geometry, material);
+            bullet.position.set(x, y, z);
+            scene.add(bullet);
+
+            bullets.push({
+                mesh: bullet,
+                box: new THREE.Box3().setFromObject(bullet),
+                velocity: direction.multiplyScalar(15),
+                createdAt: Date.now()
+            });
+        }
+
         function createCollectible(x, y, z) {
             const geometry = new THREE.OctahedronGeometry(0.7);
             const material = new THREE.MeshStandardMaterial({
@@ -613,6 +953,22 @@
                     scene.add(platform.mesh);
                 }
             });
+
+            // Reset enemies
+            enemies.forEach(enemy => {
+                if (enemy.type === 2) {
+                    enemy.mesh.position.x = (enemy.startX + enemy.endX) / 2;
+                    enemy.direction = 1;
+                    enemy.mesh.rotation.y = 0;
+                }
+                if (enemy.type === 3) {
+                    enemy.lastShot = 0;
+                }
+            });
+
+            // Clear bullets
+            bullets.forEach(bullet => scene.remove(bullet.mesh));
+            bullets = [];
 
             // Update UI
             updateUI();
@@ -875,6 +1231,80 @@
                     platform.box.setFromObject(platform.mesh);
                 }
             });
+
+            // Update enemies
+            enemies.forEach((enemy, enemyIdx) => {
+                // Type 2: Patrol movement
+                if (enemy.type === 2) {
+                    enemy.mesh.position.x += enemy.direction * enemy.speed * delta;
+                    if (enemy.mesh.position.x >= enemy.endX) {
+                        enemy.direction = -1;
+                        enemy.mesh.rotation.y = Math.PI;
+                    }
+                    if (enemy.mesh.position.x <= enemy.startX) {
+                        enemy.direction = 1;
+                        enemy.mesh.rotation.y = 0;
+                    }
+                }
+
+                // Type 3: Shooting
+                if (enemy.type === 3) {
+                    const now = Date.now();
+                    if (now - enemy.lastShot > enemy.shootInterval) {
+                        const dir = ball.position.clone().sub(enemy.mesh.position).normalize();
+                        createBullet(enemy.mesh.position.x, enemy.mesh.position.y, enemy.mesh.position.z, dir);
+                        enemy.lastShot = now;
+                    }
+                }
+
+                // Update collision box
+                enemy.box.setFromObject(enemy.mesh);
+
+                // Check collision with ball
+                if (ballBox.intersectsBox(enemy.box)) {
+                    lives--;
+                    updateUI();
+                    if (lives <= 0) {
+                        showGameOver();
+                    } else {
+                        ball.position.z += 10;
+                        ballVelocity.set(0, 0, 0);
+                    }
+                }
+            });
+
+            // Update bullets
+            let bulletsToRemove = [];
+            bullets.forEach((bullet, bulletIdx) => {
+                bullet.mesh.position.add(bullet.velocity.clone().multiplyScalar(delta));
+                bullet.box.setFromObject(bullet.mesh);
+
+                // Remove after 5 seconds
+                if (Date.now() - bullet.createdAt > 5000) {
+                    scene.remove(bullet.mesh);
+                    bulletsToRemove.push(bulletIdx);
+                    return;
+                }
+
+                // Check collision with ball
+                if (ballBox.intersectsBox(bullet.box)) {
+                    lives--;
+                    updateUI();
+                    scene.remove(bullet.mesh);
+                    bulletsToRemove.push(bulletIdx);
+                    if (lives <= 0) {
+                        showGameOver();
+                    } else {
+                        ball.position.z += 10;
+                        ballVelocity.set(0, 0, 0);
+                    }
+                }
+            });
+
+            // Remove bullets in reverse order
+            for (let i = bulletsToRemove.length - 1; i >= 0; i--) {
+                bullets.splice(bulletsToRemove[i], 1);
+            }
 
             // Collectibles
             collectibles.forEach(collectible => {
