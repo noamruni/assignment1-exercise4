@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Rolling Ball Obstacle Course</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { display: block; }
+    </style>
+</head>
+<body class="bg-black">
+    <div id="ui" class="fixed top-0 left-0 w-full p-4 flex justify-between items-start z-10">
+        <div class="bg-black/50 backdrop-blur-sm rounded-lg p-4 text-white">
+            <div class="text-lg font-bold">Score: <span id="score">0</span></div>
+            <div class="text-sm text-gray-300">Lives: <span id="lives">❤️❤️❤️</span></div>
+        </div>
+        <div class="bg-black/50 backdrop-blur-sm rounded-lg p-4 text-white text-sm">
+            <div class="font-bold mb-1">Controls</div>
+            <div>↑/W - Forward</div>
+            <div>↓/S - Backward</div>
+            <div>←/A - Left</div>
+            <div>→/D - Right</div>
+            <div>Space - Jump</div>
+        </div>
+    </div>
+    
+    <div id="startScreen" class="fixed inset-0 bg-black/80 flex items-center justify-center z-20">
+        <div class="text-center text-white">
+            <h1 class="text-5xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-cyan-500">Ball Runner</h1>
+            <p class="text-xl mb-8 text-gray-300">Roll through the obstacle course!</p>
+            <button id="startBtn" class="px-8 py-4 bg-gradient-to-r from-pink-500 to-cyan-500 rounded-full text-xl font-bold hover:scale-105 transition-transform">
+                Start Game
+            </button>
+        </div>
+    </div>
+
+    <div id="gameOverScreen" class="fixed inset-0 bg-black/80 hidden items-center justify-center z-20">
+        <div class="text-center text-white">
+            <h1 class="text-5xl font-bold mb-4 text-red-500">Game Over</h1>
+            <p class="text-2xl mb-2">Final Score: <span id="finalScore">0</span></p>
+            <p class="text-xl mb-8 text-gray-400">Distance: <span id="distance">0</span>m</p>
+            <button id="restartBtn" class="px-8 py-4 bg-gradient-to-r from-pink-500 to-cyan-500 rounded-full text-xl font-bold hover:scale-105 transition-transform">
+                Play Again
+            </button>
+        </div>
+    </div>
+
+    <div id="winScreen" class="fixed inset-0 bg-black/80 hidden items-center justify-center z-20">
+        <div class="text-center text-white">
+            <h1 class="text-5xl font-bold mb-4 text-green-500">You Win!</h1>
+            <p class="text-2xl mb-2">Final Score: <span id="winScore">0</span></p>
+            <p class="text-xl mb-8 text-gray-400">🎉 Congratulations! 🎉</p>
+            <button id="playAgainBtn" class="px-8 py-4 bg-gradient-to-r from-pink-500 to-cyan-500 rounded-full text-xl font-bold hover:scale-105 transition-transform">
+                Play Again
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Game variables
+        let scene, camera, renderer;
+        let ball, ballVelocity = new THREE.Vector3();
+        let platforms = [], obstacles = [], collectibles = [];
+        let score = 0, lives = 3;
+        let gameStarted = false, gameOver = false;
+        let keys = {};
+        let clock = new THREE.Clock();
+        const courseLength = 200;
+        
+        // Physics constants
+        const gravity = -30;
+        const moveForce = 50;
+        const jumpForce = 15;
+        const friction = 0.98;
+        const maxSpeed = 20;
+
+        // Initialize Three.js
+        function init() {
+            // Scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x1a1a2e);
+            scene.fog = new THREE.Fog(0x1a1a2e, 50, 150);
+
+            // Camera
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 8, 10);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.body.appendChild(renderer.domElement);
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+            directionalLight.position.set(20, 50, 20);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            directionalLight.shadow.camera.near = 0.5;
+            directionalLight.shadow.camera.far = 200;
+            directionalLight.shadow.camera.left = -100;
+            directionalLight.shadow.camera.right = 100;
+            directionalLight.shadow.camera.top = 100;
+            directionalLight.shadow.camera.bottom = -100;
+            scene.add(directionalLight);
+
+            // Add colored point lights for atmosphere
+            const pinkLight = new THREE.PointLight(0xff69b4, 1, 50);
+            pinkLight.position.set(-10, 10, -30);
+            scene.add(pinkLight);
+
+            const cyanLight = new THREE.PointLight(0x00ffff, 1, 50);
+            cyanLight.position.set(10, 10, -60);
+            scene.add(cyanLight);
+
+            // Create player ball
+            createBall();
+            
+            // Create obstacle course
+            createCourse();
+
+            // Event listeners
+            window.addEventListener('resize', onWindowResize);
+            window.addEventListener('keydown', (e) => {
+                keys[e.code] = true;
+                if (e.code === 'Space') e.preventDefault();
+            });
+            window.addEventListener('keyup', (e) => keys[e.code] = false);
+
+            // UI buttons
+            document.getElementById('startBtn').addEventListener('click', startGame);
+            document.getElementById('restartBtn').addEventListener('click', restartGame);
+            document.getElementById('playAgainBtn').addEventListener('click', restartGame);
+
+            // Start render loop
+            animate();
+        }
+
+        function createBall() {
+            const geometry = new THREE.SphereGeometry(1, 32, 32);
+            const material = new THREE.MeshStandardMaterial({
+                color: 0xff4444,
+                metalness: 0.3,
+                roughness: 0.4,
+                emissive: 0x220000
+            });
+            ball = new THREE.Mesh(geometry, material);
+            ball.castShadow = true;
+            ball.position.set(0, 2, 0);
+            scene.add(ball);
+        }
+
+        function createCourse() {
+            // Starting platform
+            createPlatform(0, 0, 0, 12, 1, 12, 0x4a90d9);
+
+            // Main course platforms
+            for (let i = 0; i < 20; i++) {
+                const z = -15 - i * 10;
+                const width = 8 + Math.random() * 4;
+                const x = (Math.random() - 0.5) * 8;
+                
+                if (i % 3 === 0) {
+                    // Gap section - smaller platforms
+                    createPlatform(x - 5, 0, z, 4, 1, 8, 0x6c5ce7);
+                    createPlatform(x + 5, 0, z, 4, 1, 8, 0x6c5ce7);
+                } else {
+                    createPlatform(x, 0, z, width, 1, 8, 0x4a90d9);
+                }
+
+                // Add obstacles
+                if (i > 2 && Math.random() > 0.3) {
+                    createObstacle(x, 1.5, z);
+                }
+
+                // Add moving obstacles
+                if (i > 4 && Math.random() > 0.5) {
+                    createMovingObstacle(x, 1.5, z - 2);
+                }
+
+                // Add collectibles
+                if (Math.random() > 0.4) {
+                    createCollectible(x + (Math.random() - 0.5) * 4, 3, z);
+                }
+
+                // Add ramps
+                if (i % 4 === 2) {
+                    createRamp(x, 0, z + 4);
+                }
+            }
+
+            // Goal platform
+            createPlatform(0, 0, -210, 15, 1, 15, 0x00b894);
+            createGoalMarker(0, 2, -210);
+
+            // Add decorative elements
+            for (let i = 0; i < 50; i++) {
+                const x = (Math.random() - 0.5) * 60;
+                const z = -Math.random() * courseLength;
+                createPillar(x, z);
+            }
+        }
+
+        function createPlatform(x, y, z, width, height, depth, color) {
+            const geometry = new THREE.BoxGeometry(width, height, depth);
+            const material = new THREE.MeshStandardMaterial({
+                color: color,
+                metalness: 0.2,
+                roughness: 0.8
+            });
+            const platform = new THREE.Mesh(geometry, material);
+            platform.position.set(x, y, z);
+            platform.receiveShadow = true;
+            platform.castShadow = true;
+            scene.add(platform);
+            platforms.push({
+                mesh: platform,
+                box: new THREE.Box3().setFromObject(platform)
+            });
+
+            // Add edge glow
+            const edgeGeometry = new THREE.BoxGeometry(width + 0.1, 0.1, depth + 0.1);
+            const edgeMaterial = new THREE.MeshBasicMaterial({
+                color: 0x00ffff,
+                transparent: true,
+                opacity: 0.5
+            });
+            const edge = new THREE.Mesh(edgeGeometry, edgeMaterial);
+            edge.position.set(x, y + height/2, z);
+            scene.add(edge);
+        }
+
+        function createRamp(x, y, z) {
+            const geometry = new THREE.BoxGeometry(4, 0.5, 6);
+            const material = new THREE.MeshStandardMaterial({
+                color: 0xf39c12,
+                metalness: 0.3,
+                roughness: 0.7
+            });
+            const ramp = new THREE.Mesh(geometry, material);
+            ramp.position.set(x, y + 0.5, z);
+            ramp.rotation.x = -0.3;
+            ramp.receiveShadow = true;
+            scene.add(ramp);
+            platforms.push({
+                mesh: ramp,
+                box: new THREE.Box3().setFromObject(ramp)
+            });
+        }
+
+        function createObstacle(x, y, z) {
+            const geometry = new THREE.CylinderGeometry(0.5, 0.5, 3, 8);
+            const material = new THREE.MeshStandardMaterial({
+                color: 0xe74c3c,
+                metalness: 0.5,
+                roughness: 0.5,
+                emissive: 0x330000
+            });
+            const obstacle = new THREE.Mesh(geometry, material);
+            obstacle.position.set(x, y, z);
+            obstacle.castShadow = true;
+            scene.add(obstacle);
+            obstacles.push({
+                mesh: obstacle,
+                box: new THREE.Box3().setFromObject(obstacle),
+                type: 'static'
+            });
+        }
+
+        function createMovingObstacle(x, y, z) {
+            const geometry = new THREE.BoxGeometry(3, 2, 1);
+            const material = new THREE.MeshStandardMaterial({
+                color: 0xe67e22,
+                metalness: 0.4,
+                roughness: 0.6,
+                emissive: 0x331100
+            });
+            const obstacle = new THREE.Mesh(geometry, material);
+            obstacle.position.set(x, y, z);
+            obstacle.castShadow = true;
+            scene.add(obstacle);
+            obstacles.push({
+                mesh: obstacle,
+                box: new THREE.Box3().setFromObject(obstacle),
+                type: 'moving',
+                startX: x - 4,
+                endX: x + 4,
+                speed: 2 + Math.random() * 2,
+                direction: 1
+            });
+        }
+
+        function createCollectible(x, y, z) {
+            const geometry = new THREE.OctahedronGeometry(0.7);
+            const material = new THREE.MeshStandardMaterial({
+                color: 0xf1c40f,
+                metalness: 0.6,
+                roughness: 0.3,
+                emissive: 0x553300
+            });
+            const collectible = new THREE.Mesh(geometry, material);
+            collectible.position.set(x, y, z);
+            scene.add(collectible);
+            collectibles.push({
+                mesh: collectible,
+                collected: false,
+                baseY: y
+            });
+        }
+
+        function createGoalMarker(x, y, z) {
+            // Flag pole
+            const poleGeometry = new THREE.CylinderGeometry(0.2, 0.2, 6, 8);
+            const poleMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff });
+            const pole = new THREE.Mesh(poleGeometry, poleMaterial);
+            pole.position.set(x, y + 3, z);
+            scene.add(pole);
+
+            // Flag
+            const flagGeometry = new THREE.BoxGeometry(3, 2, 0.1);
+            const flagMaterial = new THREE.MeshStandardMaterial({
+                color: 0x00b894,
+                emissive: 0x003322
+            });
+            const flag = new THREE.Mesh(flagGeometry, flagMaterial);
+            flag.position.set(x + 1.5, y + 5, z);
+            scene.add(flag);
+
+            // Glowing ring
+            const ringGeometry = new THREE.TorusGeometry(3, 0.2, 8, 32);
+            const ringMaterial = new THREE.MeshBasicMaterial({
+                color: 0x00ff00,
+                transparent: true,
+                opacity: 0.7
+            });
+            const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+            ring.position.set(x, y + 1, z);
+            ring.rotation.x = Math.PI / 2;
+            scene.add(ring);
+        }
+
+        function createPillar(x, z) {
+            const height = 5 + Math.random() * 10;
+            const geometry = new THREE.CylinderGeometry(0.5, 0.8, height, 6);
+            const material = new THREE.MeshStandardMaterial({
+                color: 0x2c3e50,
+                metalness: 0.3,
+                roughness: 0.8
+            });
+            const pillar = new THREE.Mesh(geometry, material);
+            pillar.position.set(x, height / 2 - 5, z);
+            pillar.castShadow = true;
+            scene.add(pillar);
+        }
+
+        function resetGameState() {
+            // Reset game state variables
+            score = 0;
+            lives = 3;
+            gameOver = false;
+            gameStarted = true;
+
+            // Reset ball position and velocity
+            ball.position.set(0, 2, 0);
+            ballVelocity.set(0, 0, 0);
+
+            // Clear any stuck key inputs
+            keys = {};
+
+            // Reset collectibles
+            collectibles.forEach(c => {
+                c.collected = false;
+                c.mesh.visible = true;
+            });
+
+            // Reset obstacles to initial positions
+            obstacles.forEach(obstacle => {
+                if (obstacle.type === 'moving') {
+                    obstacle.mesh.position.x = (obstacle.startX + obstacle.endX) / 2;
+                    obstacle.direction = 1;
+                }
+            });
+
+            // Update UI
+            updateUI();
+        }
+
+        function startGame() {
+            resetGameState();
+            document.getElementById('startScreen').classList.add('hidden');
+            document.getElementById('startScreen').style.display = 'none';
+            document.getElementById('gameOverScreen').classList.add('hidden');
+            document.getElementById('gameOverScreen').style.display = 'none';
+            document.getElementById('winScreen').classList.add('hidden');
+            document.getElementById('winScreen').style.display = 'none';
+        }
+
+        function restartGame() {
+            resetGameState();
+
+            // Hide all screens
+            document.getElementById('startScreen').classList.add('hidden');
+            document.getElementById('startScreen').style.display = 'none';
+            document.getElementById('gameOverScreen').classList.add('hidden');
+            document.getElementById('gameOverScreen').style.display = 'none';
+            document.getElementById('winScreen').classList.add('hidden');
+            document.getElementById('winScreen').style.display = 'none';
+        }
+
+        function showGameOver() {
+            gameOver = true;
+            document.getElementById('finalScore').textContent = score;
+            document.getElementById('distance').textContent = Math.abs(Math.floor(ball.position.z));
+            document.getElementById('gameOverScreen').classList.remove('hidden');
+            document.getElementById('gameOverScreen').style.display = 'flex';
+        }
+
+        function showWin() {
+            gameOver = true;
+            document.getElementById('winScore').textContent = score;
+            document.getElementById('winScreen').classList.remove('hidden');
+            document.getElementById('winScreen').style.display = 'flex';
+        }
+
+        function updateUI() {
+            document.getElementById('score').textContent = score;
+            let hearts = '';
+            for (let i = 0; i < lives; i++) hearts += '❤️';
+            document.getElementById('lives').textContent = hearts || '💔';
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function update(delta) {
+            if (!gameStarted || gameOver) return;
+
+            // Apply gravity
+            ballVelocity.y += gravity * delta;
+
+            // Player input
+            const inputForce = new THREE.Vector3();
+            if (keys['KeyW'] || keys['ArrowUp']) inputForce.z -= 1;
+            if (keys['KeyS'] || keys['ArrowDown']) inputForce.z += 1;
+            if (keys['KeyA'] || keys['ArrowLeft']) inputForce.x -= 1;
+            if (keys['KeyD'] || keys['ArrowRight']) inputForce.x += 1;
+            
+            if (inputForce.length() > 0) {
+                inputForce.normalize();
+                ballVelocity.x += inputForce.x * moveForce * delta;
+                ballVelocity.z += inputForce.z * moveForce * delta;
+            }
+
+            // Apply friction
+            ballVelocity.x *= friction;
+            ballVelocity.z *= friction;
+
+            // Clamp horizontal speed
+            const horizontalSpeed = Math.sqrt(ballVelocity.x ** 2 + ballVelocity.z ** 2);
+            if (horizontalSpeed > maxSpeed) {
+                ballVelocity.x = (ballVelocity.x / horizontalSpeed) * maxSpeed;
+                ballVelocity.z = (ballVelocity.z / horizontalSpeed) * maxSpeed;
+            }
+
+            // Update position
+            ball.position.x += ballVelocity.x * delta;
+            ball.position.y += ballVelocity.y * delta;
+            ball.position.z += ballVelocity.z * delta;
+
+            // Ball rotation based on velocity
+            ball.rotation.x -= ballVelocity.z * delta * 2;
+            ball.rotation.z += ballVelocity.x * delta * 2;
+
+            // Platform collision
+            let onGround = false;
+            const ballBox = new THREE.Box3().setFromObject(ball);
+            
+            platforms.forEach(platform => {
+                platform.box.setFromObject(platform.mesh);
+                if (ballBox.intersectsBox(platform.box)) {
+                    // Check if ball is above platform
+                    if (ball.position.y > platform.mesh.position.y) {
+                        ball.position.y = platform.mesh.position.y + platform.mesh.geometry.parameters.height / 2 + 1;
+                        ballVelocity.y = 0;
+                        onGround = true;
+                        
+                        // Jump
+                        if (keys['Space']) {
+                            ballVelocity.y = jumpForce;
+                            onGround = false;
+                        }
+                    }
+                }
+            });
+
+            // Update moving obstacles
+            obstacles.forEach(obstacle => {
+                if (obstacle.type === 'moving') {
+                    obstacle.mesh.position.x += obstacle.direction * obstacle.speed * delta;
+                    if (obstacle.mesh.position.x > obstacle.endX) obstacle.direction = -1;
+                    if (obstacle.mesh.position.x < obstacle.startX) obstacle.direction = 1;
+                }
+                obstacle.box.setFromObject(obstacle.mesh);
+                
+                // Check collision with ball
+                if (ballBox.intersectsBox(obstacle.box)) {
+                    lives--;
+                    updateUI();
+                    if (lives <= 0) {
+                        showGameOver();
+                    } else {
+                        // Respawn slightly back
+                        ball.position.z += 10;
+                        ballVelocity.set(0, 0, 0);
+                    }
+                }
+            });
+
+            // Collectibles
+            collectibles.forEach(collectible => {
+                if (!collectible.collected) {
+                    // Rotate and bob
+                    collectible.mesh.rotation.y += delta * 2;
+                    collectible.mesh.position.y = collectible.baseY + Math.sin(Date.now() * 0.003) * 0.3;
+                    
+                    // Check collection
+                    const dist = ball.position.distanceTo(collectible.mesh.position);
+                    if (dist < 1.5) {
+                        collectible.collected = true;
+                        collectible.mesh.visible = false;
+                        score += 100;
+                        updateUI();
+                    }
+                }
+            });
+
+            // Check win condition
+            if (ball.position.z < -205) {
+                showWin();
+            }
+
+            // Fall off - respawn or game over
+            if (ball.position.y < -20) {
+                lives--;
+                updateUI();
+                if (lives <= 0) {
+                    showGameOver();
+                } else {
+                    ball.position.set(0, 2, Math.min(ball.position.z + 15, 0));
+                    ballVelocity.set(0, 0, 0);
+                }
+            }
+
+            // Update camera
+            const cameraTargetX = ball.position.x * 0.3;
+            const cameraTargetY = ball.position.y + 8;
+            const cameraTargetZ = ball.position.z + 12;
+            
+            camera.position.x += (cameraTargetX - camera.position.x) * 0.05;
+            camera.position.y += (cameraTargetY - camera.position.y) * 0.05;
+            camera.position.z += (cameraTargetZ - camera.position.z) * 0.05;
+            camera.lookAt(ball.position.x, ball.position.y + 1, ball.position.z - 5);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = Math.min(clock.getDelta(), 0.1);
+            update(delta);
+            renderer.render(scene, camera);
+        }
+
+        // Start
+        init();
+    </script>
+</body>
+</html>
