@@ -481,20 +481,32 @@
             // Platform collision
             let onGround = false;
             const ballBox = new THREE.Box3().setFromObject(ball);
-            
+
             platforms.forEach(platform => {
                 platform.box.setFromObject(platform.mesh);
                 if (ballBox.intersectsBox(platform.box)) {
-                    // Check if ball is above platform
+                    // Check if ball is above platform (approaching from top)
                     if (ball.position.y > platform.mesh.position.y) {
-                        ball.position.y = platform.mesh.position.y + platform.mesh.geometry.parameters.height / 2 + 1;
-                        ballVelocity.y = 0;
-                        onGround = true;
-                        
-                        // Jump
-                        if (keys['Space']) {
-                            ballVelocity.y = jumpForce;
-                            onGround = false;
+                        // Also check that ball is within platform's XZ bounds
+                        const platformGeom = platform.mesh.geometry.parameters;
+                        const platformWidth = platformGeom.width;
+                        const platformDepth = platformGeom.depth;
+                        const platformX = platform.mesh.position.x;
+                        const platformZ = platform.mesh.position.z;
+
+                        const ballInXBounds = Math.abs(ball.position.x - platformX) <= platformWidth / 2 + 1;
+                        const ballInZBounds = Math.abs(ball.position.z - platformZ) <= platformDepth / 2 + 1;
+
+                        if (ballInXBounds && ballInZBounds) {
+                            ball.position.y = platform.mesh.position.y + platform.mesh.geometry.parameters.height / 2 + 1;
+                            ballVelocity.y = 0;
+                            onGround = true;
+
+                            // Jump
+                            if (keys['Space']) {
+                                ballVelocity.y = jumpForce;
+                                onGround = false;
+                            }
                         }
                     }
                 }
