@@ -28,7 +28,7 @@
     </div>
     
     <div id="startScreen" class="fixed inset-0 bg-black/80 flex items-center justify-center z-20">
-        <div class="text-center text-white max-h-[90vh] overflow-y-auto">
+        <div class="text-center text-white max-h-[90vh] overflow-y-auto flex flex-col items-center">
             <h1 class="text-5xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-cyan-500">Ball Runner</h1>
             <p class="text-xl mb-8 text-gray-300">Roll through the obstacle course!</p>
             <button id="startBtn" class="px-8 py-4 bg-gradient-to-r from-pink-500 to-cyan-500 rounded-full text-xl font-bold hover:scale-105 transition-transform">
@@ -388,7 +388,10 @@
             scene.add(platform);
             platforms.push({
                 mesh: platform,
-                box: new THREE.Box3().setFromObject(platform)
+                box: new THREE.Box3().setFromObject(platform),
+                standingTime: 0,
+                isFalling: false,
+                originalY: y
             });
 
             // Add edge glow
@@ -557,6 +560,19 @@
                 }
             });
 
+            // Reset falling platforms
+            platforms.forEach(platform => {
+                platform.standingTime = 0;
+                platform.isFalling = false;
+                platform.mesh.position.y = platform.originalY;
+                platform.mesh.material.emissive.setHex(0x000000);
+                platform.mesh.material.emissiveIntensity = 0;
+                platform.box.setFromObject(platform.mesh);
+                if (!platform.mesh.parent) {
+                    scene.add(platform.mesh);
+                }
+            });
+
             // Update UI
             updateUI();
         }
@@ -688,12 +704,39 @@
                                 console.log(`[BONUS] Collected +${bonus} on platform ${platformIndex}`);
                             }
 
+                            // Track standing time (exclude start and goal platforms)
+                            if (platformIndex > 0 && platformIndex < platforms.length - 1) {
+                                if (!platform.isFalling) {
+                                    platform.standingTime += delta;
+
+                                    // Visual warning at 3.5 seconds
+                                    if (platform.standingTime > 3.5) {
+                                        const warnIntensity = (platform.standingTime - 3.5) / 0.5;
+                                        platform.mesh.material.emissive.setHex(0xFF0000);
+                                        platform.mesh.material.emissiveIntensity = Math.min(warnIntensity, 1);
+                                    }
+
+                                    // Platform falls after 4 seconds
+                                    if (platform.standingTime > 4) {
+                                        platform.isFalling = true;
+                                        console.log(`[FALLING] Platform ${platformIndex} started falling`);
+                                    }
+                                }
+                            }
+
                             // Jump
                             if (keys['Space']) {
                                 ballVelocity.y = jumpForce;
                                 onGround = false;
                             }
                         }
+                    }
+                } else {
+                    // Ball not on platform - reset standing time
+                    if (!platform.isFalling) {
+                        platform.standingTime = 0;
+                        platform.mesh.material.emissive.setHex(0x000000);
+                        platform.mesh.material.emissiveIntensity = 0;
                     }
                 }
             });
@@ -739,6 +782,38 @@
                     }
                 }
             });
+
+            // Update falling platforms
+            let platformsToRemove = [];
+            platforms.forEach((platform, idx) => {
+                if (platform.isFalling) {
+                    const fallSpeed = 15;
+                    platform.mesh.position.y -= fallSpeed * delta;
+                    platform.box.setFromObject(platform.mesh);
+
+                    // Remove from scene if fallen far enough
+                    if (platform.mesh.position.y < -50) {
+                        scene.remove(platform.mesh);
+                        platformsToRemove.push(idx);
+                    }
+                }
+            });
+
+            // Remove fallen platforms from array (in reverse order to maintain indices)
+            for (let i = platformsToRemove.length - 1; i >= 0; i--) {
+                platforms.splice(platformsToRemove[i], 1);
+            }
+
+            // If ball is on a falling platform, bounce it up
+            if (onGround) {
+                for (let platform of platforms) {
+                    if (platform.isFalling && ballBox.intersectsBox(platform.box)) {
+                        ballVelocity.y = 10;
+                        onGround = false;
+                        break;
+                    }
+                }
+            }
 
             // Collectibles
             collectibles.forEach(collectible => {
