@@ -248,19 +248,50 @@
         function createCourse() {
             // Starting platform
             createPlatform(0, 0, 0, 12, 1, 12, 0x4a90d9);
+            createPlatformLabel('START', 0, 0, 0);
 
             // Main course platforms
             for (let i = 0; i < 20; i++) {
                 const z = -15 - i * 10;
-                const width = 8 + Math.random() * 4;
-                const x = (Math.random() - 0.5) * 8;
-                
+                const platformNumber = (i + 1) * 10;
+                let x = (Math.random() - 0.5) * 8;
+
                 if (i % 3 === 0) {
                     // Gap section - smaller platforms
-                    createPlatform(x - 5, 0, z, 4, 1, 8, 0x6c5ce7);
-                    createPlatform(x + 5, 0, z, 4, 1, 8, 0x6c5ce7);
+                    let leftX = x - 5, rightX = x + 5;
+                    let retries = 0;
+
+                    while ((isPlatformOverlapping(new THREE.Box3().setFromCenterAndSize(new THREE.Vector3(leftX, 0, z), new THREE.Vector3(4, 1, 8))) ||
+                            isPlatformOverlapping(new THREE.Box3().setFromCenterAndSize(new THREE.Vector3(rightX, 0, z), new THREE.Vector3(4, 1, 8)))) && retries < 5) {
+                        x = (Math.random() - 0.5) * 8;
+                        leftX = x - 5;
+                        rightX = x + 5;
+                        retries++;
+                    }
+
+                    createPlatform(leftX, 0, z, 4, 1, 8, 0x6c5ce7);
+                    createPlatform(rightX, 0, z, 4, 1, 8, 0x6c5ce7);
+
+                    if (i % 20 === 0) {
+                        createPlatformLabel(platformNumber.toString(), leftX, 0, z);
+                        createPlatformLabel(platformNumber.toString(), rightX, 0, z);
+                    }
                 } else {
+                    // Variable width based on difficulty progression
+                    const difficultyFactor = Math.max(0.5, 1 - i * 0.02);
+                    const width = 6 + Math.random() * 8 * difficultyFactor;
+
+                    let retries = 0;
+                    while (isPlatformOverlapping(new THREE.Box3().setFromCenterAndSize(new THREE.Vector3(x, 0, z), new THREE.Vector3(width, 1, 8))) && retries < 5) {
+                        x = (Math.random() - 0.5) * 8;
+                        retries++;
+                    }
+
                     createPlatform(x, 0, z, width, 1, 8, 0x4a90d9);
+
+                    if (i % 10 === 0) {
+                        createPlatformLabel(platformNumber.toString(), x, 0, z);
+                    }
                 }
 
                 // Add obstacles
@@ -287,6 +318,7 @@
             // Goal platform
             createPlatform(0, 0, -210, 15, 1, 15, 0x00b894);
             createGoalMarker(0, 2, -210);
+            createPlatformLabel('GOAL', 0, 0, -210);
 
             // Add decorative elements
             for (let i = 0; i < 50; i++) {
@@ -294,6 +326,45 @@
                 const z = -Math.random() * courseLength;
                 createPillar(x, z);
             }
+        }
+
+        function isPlatformOverlapping(newBox) {
+            for (let platform of platforms) {
+                if (newBox.intersectsBox(platform.box)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function createPlatformLabel(text, x, y, z) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+
+            // Draw background
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+            ctx.fillRect(0, 0, 256, 256);
+
+            // Draw text
+            ctx.fillStyle = '#00ffff';
+            ctx.font = 'bold 120px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, 128, 128);
+
+            // Draw border
+            ctx.strokeStyle = '#00ffff';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(10, 10, 236, 236);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            const material = new THREE.SpriteMaterial({ map: texture });
+            const sprite = new THREE.Sprite(material);
+            sprite.position.set(x, y + 2, z);
+            sprite.scale.set(4, 4, 1);
+            scene.add(sprite);
         }
 
         function createPlatform(x, y, z, width, height, depth, color) {
