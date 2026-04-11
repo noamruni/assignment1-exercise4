@@ -43,17 +43,17 @@ Build in order (easiest → most complex). Commit after each checked-off feature
 - [x] Speed and amplitude tuned for fair gameplay
 
 ### 7) Enemy Spawning (5%, weighted types)
-- [ ] 5% of platforms have an enemy
-- [ ] Type1 50% — static
-- [ ] Type2 40% — side-to-side patrol
-- [ ] Type3 10% — static shooter
-- [ ] Touching an enemy kills the player
+- [x] 5% of platforms have an enemy
+- [x] Type1 50% — static cat with glowing eyes
+- [x] Type2 40% — dog that patrols side-to-side
+- [x] Type3 10% — owl that shoots projectiles
+- [x] Touching an enemy kills the player
 
 ### 8) Enemy Behaviors
-- [ ] Type1: stands still
-- [ ] Type2: moves left ↔ right within platform bounds
-- [ ] Type3: shoots bullets toward the player
-- [ ] All three types are visually distinct
+- [x] Type1 (Cat): stands still, menacing
+- [x] Type2 (Dog): moves left ↔ right with animated walking
+- [x] Type3 (Owl): shoots red projectiles toward the player
+- [x] All three types are visually distinct animal figures
 
 ### 9) Powerups
 - [ ] Star powerup: 6 s invincibility, kills enemies on touch
