@@ -546,9 +546,9 @@
                 showWin();
             }
 
-            // Fall off - respawn or game over
-            if (ball.position.y < -20) {
-                console.log('[DEBUG] Fall detected at y =', ball.position.y, 'lives before:', lives);
+            // Fall off - respawn or game over (Y boundary or X boundary)
+            if (ball.position.y < -20 || Math.abs(ball.position.x) > 30) {
+                console.log('[DEBUG] Fall detected at y =', ball.position.y, 'x =', ball.position.x, 'lives before:', lives);
                 lives--;
                 updateUI();
                 if (lives <= 0) {
