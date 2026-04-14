@@ -67,26 +67,15 @@ Build in order (easiest → most complex). Commit after each checked-off feature
 - [x] **Bonus**: Atmospheric lighting enhancements and color-coded entity system
 
 ### 11) Audio Upgrade
-- [ ] Background music loop
-- [ ] SFX: jump, hit, collect, enemy shot, game over, button click
-- [ ] Volume balanced; no sound spam on rapid events
+- [x] Background music loop
+- [x] SFX: jump, hit, collect, enemy shot, game over, button click, fall
+- [x] Volume balanced; no sound spam on rapid events
 
-### 12) Mobile Support
-- [ ] Responsive canvas + UI scaling
-- [ ] On-screen touch controls (joystick / buttons)
-- [ ] Verified in Chrome DevTools device emulation
-
-### 13) Camera Control Mode (MediaPipe)
+### 12) Camera Control Mode (MediaPipe)
 - [ ] `Start with camera` button on start screen
 - [ ] MediaPipe hand-tracking drives player movement
 - [ ] Gestures tuned until fun and stable
 
-### 14) Three Unique Features
-- [ ] Feature A: _(describe here)_
-- [ ] Feature B: _(describe here)_
-- [ ] Feature C: _(describe here)_
-
----
 
 ## Automated Testing Strategy
 
