@@ -38,11 +38,18 @@
                 <button id="ballNeon" class="px-2 py-1 bg-blue-600 rounded hover:bg-blue-500 transition-colors text-xs">⚡ Neon</button>
             </div>
         </div>
-        <div>
+        <div class="mb-2">
             <div class="font-bold text-cyan-400 mb-1">Wall Texture:</div>
             <div class="flex gap-1">
                 <button id="wallConcrete" class="px-2 py-1 bg-purple-600 rounded hover:bg-purple-500 transition-colors text-xs">🧱 Concrete</button>
                 <button id="wallScifi" class="px-2 py-1 bg-purple-600 rounded hover:bg-purple-500 transition-colors text-xs">🔮 Sci-Fi</button>
+            </div>
+        </div>
+        <div>
+            <div class="font-bold text-orange-400 mb-1">Diamond Texture:</div>
+            <div class="flex gap-1">
+                <button id="collectGold" class="px-2 py-1 bg-orange-600 rounded hover:bg-orange-500 transition-colors text-xs">💛 Gold</button>
+                <button id="collectCrystal" class="px-2 py-1 bg-orange-600 rounded hover:bg-orange-500 transition-colors text-xs">💎 Crystal</button>
             </div>
         </div>
     </div>
@@ -156,6 +163,42 @@
             }
         }
 
+        // Collectible diamond texture
+        let collectibleTexture = null;
+        const collectibleTextureCache = {};
+
+        function loadCollectibleTexture() {
+            const currentPath = TextureSelector.collectibleTextures[TextureSelector.currentCollectibleIndex].path;
+
+            // Return cached texture if available
+            if (collectibleTextureCache[currentPath]) {
+                return collectibleTextureCache[currentPath];
+            }
+
+            try {
+                const textureLoader = new THREE.TextureLoader();
+                textureLoader.load(
+                    currentPath,
+                    (texture) => {
+                        texture.wrapS = THREE.RepeatWrapping;
+                        texture.wrapT = THREE.RepeatWrapping;
+                        texture.repeat.set(1, 1);
+                        collectibleTextureCache[currentPath] = texture;
+                        collectibleTexture = texture;
+                        console.log('[TEXTURE] Collectible texture loaded:', currentPath);
+                    },
+                    undefined,
+                    (error) => {
+                        console.warn('[TEXTURE] Failed to load collectible texture:', error);
+                    }
+                );
+                return collectibleTexture;
+            } catch (e) {
+                console.error('[TEXTURE] Error loading collectible texture:', e);
+                return null;
+            }
+        }
+
         // Ball moon texture
         let ballTexture = null;
 
@@ -196,8 +239,13 @@
                 { name: 'Concrete', path: 'assets/textures/walls/concrete.jpg' },
                 { name: 'Sci-Fi', path: 'assets/textures/walls/scifi-panel.jpg' }
             ],
+            collectibleTextures: [
+                { name: 'Gold', path: 'assets/textures/collectible/gold.jpg' },
+                { name: 'Crystal', path: 'assets/textures/collectible/crystal.jpg' }
+            ],
             currentBallIndex: 0,
-            currentWallIndex: 0
+            currentWallIndex: 0,
+            currentCollectibleIndex: 0
         };
 
         function switchBallTexture(index) {
@@ -239,6 +287,36 @@
             });
         }
 
+        function switchCollectibleTexture(index) {
+            const texturePath = TextureSelector.collectibleTextures[index].path;
+            const textureLoader = new THREE.TextureLoader();
+            textureLoader.load(texturePath, (texture) => {
+                texture.wrapS = THREE.RepeatWrapping;
+                texture.wrapT = THREE.RepeatWrapping;
+                texture.repeat.set(1, 1);
+                // Update all collectibles
+                collectibles.forEach(collectible => {
+                    if (collectible.mesh && collectible.mesh.material) {
+                        collectible.mesh.material.map = texture;
+                        // Update color based on texture type
+                        if (index === 0) {
+                            collectible.mesh.material.color.setHex(0xFFD700);  // Gold
+                            collectible.mesh.material.emissive.setHex(0xFFA500);
+                        } else {
+                            collectible.mesh.material.color.setHex(0x00FFFF);  // Cyan
+                            collectible.mesh.material.emissive.setHex(0x00AA88);
+                        }
+                        collectible.mesh.material.needsUpdate = true;
+                    }
+                });
+                TextureSelector.currentCollectibleIndex = index;
+                collectibleTexture = null;  // Reset cached texture
+                updateTextureUI();
+                playSound('click', 0.3);
+                console.log('[TEXTURE] Collectible texture changed to:', TextureSelector.collectibleTextures[index].name);
+            });
+        }
+
         function updateTextureUI() {
             // Update ball texture buttons
             document.getElementById('ballMoon').classList.remove('bg-green-600', 'bg-blue-600');
@@ -260,6 +338,19 @@
             } else {
                 document.getElementById('wallConcrete').classList.add('bg-purple-600');
                 document.getElementById('wallScifi').classList.add('bg-green-600');
+            }
+
+            // Update collectible texture buttons
+            if (document.getElementById('collectGold') && document.getElementById('collectCrystal')) {
+                document.getElementById('collectGold').classList.remove('bg-green-600', 'bg-orange-600');
+                document.getElementById('collectCrystal').classList.remove('bg-green-600', 'bg-orange-600');
+                if (TextureSelector.currentCollectibleIndex === 0) {
+                    document.getElementById('collectGold').classList.add('bg-green-600');
+                    document.getElementById('collectCrystal').classList.add('bg-orange-600');
+                } else {
+                    document.getElementById('collectGold').classList.add('bg-orange-600');
+                    document.getElementById('collectCrystal').classList.add('bg-green-600');
+                }
             }
         }
         
@@ -682,6 +773,8 @@ async function init() {
             document.getElementById('ballNeon').addEventListener('click', () => switchBallTexture(1));
             document.getElementById('wallConcrete').addEventListener('click', () => switchWallTexture(0));
             document.getElementById('wallScifi').addEventListener('click', () => switchWallTexture(1));
+            document.getElementById('collectGold').addEventListener('click', () => switchCollectibleTexture(0));
+            document.getElementById('collectCrystal').addEventListener('click', () => switchCollectibleTexture(1));
 
             // Initialize UI state
             updateTextureUI();
@@ -1164,11 +1257,13 @@ async function init() {
 
         function createCollectible(x, y, z) {
             const geometry = new THREE.OctahedronGeometry(0.7);
+            const collectibleTexture = loadCollectibleTexture();
             const material = new THREE.MeshStandardMaterial({
-                color: 0xFFD700,
+                map: collectibleTexture,          // Apply texture if loaded
+                color: TextureSelector.currentCollectibleIndex === 0 ? 0xFFD700 : 0x00FFFF,  // Gold or cyan
                 metalness: 0.7,
                 roughness: 0.2,
-                emissive: 0xFFA500,
+                emissive: TextureSelector.currentCollectibleIndex === 0 ? 0xFFA500 : 0x00AA88,
                 emissiveIntensity: 0.4
             });
             const collectible = new THREE.Mesh(geometry, material);
