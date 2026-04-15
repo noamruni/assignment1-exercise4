@@ -11,6 +11,11 @@
     <style>
         body { margin: 0; overflow: hidden; }
         canvas { display: block; }
+        @keyframes scoreFlash {
+            0%   { color: #FFD700; transform: scale(1.5); }
+            100% { color: white;   transform: scale(1); }
+        }
+        .score-flash { animation: scoreFlash 0.4s ease-out; }
     </style>
 </head>
 <body class="bg-black">
@@ -18,6 +23,11 @@
         <div class="bg-black/50 backdrop-blur-sm rounded-lg p-4 text-white">
             <div class="text-lg font-bold">Score: <span id="score">0</span></div>
             <div class="text-sm text-gray-300">Lives: <span id="lives">⭐⭐⭐⭐⭐</span></div>
+            <div class="mt-2 flex gap-1">
+                <button id="diff0" class="px-2 py-1 rounded text-xs font-bold bg-green-700 hover:bg-green-600 transition-colors">🟢 Easy</button>
+                <button id="diff1" class="px-2 py-1 rounded text-xs font-bold bg-yellow-600 hover:bg-yellow-500 transition-colors">🟡 Medium</button>
+                <button id="diff2" class="px-2 py-1 rounded text-xs font-bold bg-red-800 hover:bg-red-700 transition-colors">🔴 Hard</button>
+            </div>
         </div>
         <button id="helpBtn" class="bg-black/50 backdrop-blur-sm rounded-lg px-3 py-2 text-white text-sm font-bold hover:bg-white/20 transition-colors">❓ How to Play</button>
     </div>
@@ -98,13 +108,12 @@
         </div>
     </div>
 
-    <div id="gameOverScreen" class="fixed inset-0 bg-black/80 hidden items-center justify-center z-20">
-        <div class="text-center text-white max-h-[90vh] overflow-y-auto">
-            <h1 class="text-5xl font-bold mb-4 text-red-500">Game Over</h1>
-            <p class="text-2xl mb-2">Final Score: <span id="finalScore">0</span></p>
-            <p class="text-xl mb-8 text-gray-400">Distance: <span id="distance">0</span>m</p>
-
-            <button id="restartBtn" class="px-8 py-4 bg-gradient-to-r from-pink-500 to-cyan-500 rounded-full text-xl font-bold hover:scale-105 transition-transform">
+    <div id="gameOverScreen" class="fixed inset-0 bg-black/80 hidden z-20" style="display:none; align-items:center; justify-content:center;">
+        <div class="text-center text-white">
+            <h1 class="text-5xl font-bold mb-6 text-red-500">Game Over</h1>
+            <p class="text-3xl mb-3">Final Score: <span id="finalScore" class="text-yellow-400 font-bold">0</span></p>
+            <p class="text-xl mb-10 text-gray-400">Distance: <span id="distance">0</span>m</p>
+            <button id="restartBtn" class="px-10 py-4 bg-gradient-to-r from-pink-500 to-cyan-500 rounded-full text-2xl font-bold hover:scale-105 transition-transform shadow-lg">
                 Play Again
             </button>
         </div>
@@ -320,12 +329,32 @@
             setActiveBtn(p ? 'platformGrid' : 'platformStar', p ? 'platformStar' : 'platformGrid', 'bg-green-600', 'bg-pink-600');
         }
         
-        // Physics constants
-        const gravity = -18;
-        const moveForce = 40;
-        const jumpForce = 13;
-        const friction = 0.985;
-        const maxSpeed = 15;
+        // Difficulty config
+        let currentDifficulty = 1;
+        const DIFFICULTY = [
+            { label: 'Easy',   moveForce: 28, maxSpeed: 10, gravity: -16, jumpForce: 13,
+              platformBaseWidth: 12, platformRandom: 5, gapWidth: 8, gapStartIndex: 14,
+              obstacleChance: 0.30, movingObstacleChance: 0.25,
+              movingPlatformChance: 0.04, movingPlatformSpeed: 0.4,
+              enemyStartIndex: 17, enemyChance: 0.03, lives: 5, collectibleChance: 0.15 },
+            { label: 'Medium', moveForce: 40, maxSpeed: 15, gravity: -18, jumpForce: 13,
+              platformBaseWidth: 9,  platformRandom: 6, gapWidth: 6, gapStartIndex: 10,
+              obstacleChance: 0.45, movingObstacleChance: 0.35,
+              movingPlatformChance: 0.08, movingPlatformSpeed: 0.6,
+              enemyStartIndex: 13, enemyChance: 0.05, lives: 5, collectibleChance: 0.25 },
+            { label: 'Hard',   moveForce: 55, maxSpeed: 22, gravity: -22, jumpForce: 13,
+              platformBaseWidth: 6,  platformRandom: 5, gapWidth: 4, gapStartIndex: 6,
+              obstacleChance: 0.60, movingObstacleChance: 0.50,
+              movingPlatformChance: 0.15, movingPlatformSpeed: 1.0,
+              enemyStartIndex: 10, enemyChance: 0.10, lives: 3, collectibleChance: 0.40 },
+        ];
+
+        // Physics constants — set from difficulty at game start
+        let gravity = -18;
+        let moveForce = 40;
+        let jumpForce = 13;
+        let friction = 0.985;
+        let maxSpeed = 15;
 
         // Simple GLTF helpers for jellyfish pillars
         let jellyTemplate = null;
@@ -772,8 +801,17 @@ async function init() {
             document.getElementById('platformGrid').addEventListener('click', () => switchPlatformTexture(0));
             document.getElementById('platformStar').addEventListener('click', () => switchPlatformTexture(1));
 
+            // Difficulty buttons
+            [0, 1, 2].forEach(i => {
+                document.getElementById('diff' + i).addEventListener('click', () => {
+                    currentDifficulty = i;
+                    updateDifficultyUI();
+                });
+            });
+
             // Initialize UI state
             updateTextureUI();
+            updateDifficultyUI();
 
             // Render leaderboard on start screen
             renderLeaderboard();
@@ -806,32 +844,31 @@ async function init() {
             createPlatformLabel('START', 0, 0, 0);
 
             // Main course platforms
+            const diff = DIFFICULTY[currentDifficulty];
             for (let i = 0; i < 20; i++) {
                 const z = -15 - i * 10;
                 const hasBonus = Math.random() > 0.7;
-                let x = (Math.random() - 0.5) * 6;  // tighter x spread so platforms stay reachable
+                let x = (Math.random() - 0.5) * 6;
 
-                // Gap sections only after platform 9, and gap platforms are wider
-                if (i % 3 === 0 && i > 9) {
-                    let leftX = x - 4, rightX = x + 4;
+                if (i % 3 === 0 && i > diff.gapStartIndex) {
+                    const gw = diff.gapWidth;
+                    const half = gw / 2 + 2;
+                    let leftX = x - half, rightX = x + half;
                     let retries = 0;
-
-                    while ((isPlatformOverlapping(new THREE.Box3().setFromCenterAndSize(new THREE.Vector3(leftX, 0, z), new THREE.Vector3(6, 1, 8))) ||
-                            isPlatformOverlapping(new THREE.Box3().setFromCenterAndSize(new THREE.Vector3(rightX, 0, z), new THREE.Vector3(6, 1, 8)))) && retries < 5) {
+                    while ((isPlatformOverlapping(new THREE.Box3().setFromCenterAndSize(new THREE.Vector3(leftX, 0, z), new THREE.Vector3(gw, 1, 9))) ||
+                            isPlatformOverlapping(new THREE.Box3().setFromCenterAndSize(new THREE.Vector3(rightX, 0, z), new THREE.Vector3(gw, 1, 9)))) && retries < 5) {
                         x = (Math.random() - 0.5) * 6;
-                        leftX = x - 4;
-                        rightX = x + 4;
+                        leftX = x - half;
+                        rightX = x + half;
                         retries++;
                     }
-
-                    createPlatform(leftX, 0, z, 6, 1, 9, 0x6c5ce7);
+                    createPlatform(leftX, 0, z, gw, 1, 9, 0x6c5ce7);
                     platformBonuses.push(hasBonus ? 50 : 0);
-                    createPlatform(rightX, 0, z, 6, 1, 9, 0x6c5ce7);
+                    createPlatform(rightX, 0, z, gw, 1, 9, 0x6c5ce7);
                     platformBonuses.push(hasBonus ? 50 : 0);
                 } else {
-                    // Wide platforms early, gentle narrowing later
-                    const difficultyFactor = Math.max(0.7, 1 - i * 0.01);
-                    const width = 9 + Math.random() * 6 * difficultyFactor;
+                    const narrowing = Math.max(0.7, 1 - i * 0.01);
+                    const width = diff.platformBaseWidth + Math.random() * diff.platformRandom * narrowing;
 
                     let retries = 0;
                     while (isPlatformOverlapping(new THREE.Box3().setFromCenterAndSize(new THREE.Vector3(x, 0, z), new THREE.Vector3(width, 1, 9))) && retries < 5) {
@@ -842,40 +879,31 @@ async function init() {
                     createPlatform(x, 0, z, width, 1, 9, 0x4a90d9);
                     platformBonuses.push(hasBonus ? 50 : 0);
 
-                    // Moving platforms only after halfway, lower chance
-                    if (i > 10 && i < 18 && Math.random() < 0.08) {
+                    if (i > 5 && i < 18 && Math.random() < diff.movingPlatformChance) {
                         const lastPlatform = platforms[platforms.length - 1];
                         lastPlatform.isMoving = true;
-                        lastPlatform.moveSpeed = 0.6 + Math.random() * 0.4;
+                        lastPlatform.moveSpeed = diff.movingPlatformSpeed + Math.random() * 0.3;
                         lastPlatform.mesh.material.emissive.setHex(0x0033FF);
                         lastPlatform.mesh.material.emissiveIntensity = 0.3;
                     }
 
-                    // Enemies only in last third, low chance
-                    if (i > 13 && i < 18 && Math.random() < 0.05) {
+                    if (i > diff.enemyStartIndex && i < 18 && Math.random() < diff.enemyChance) {
                         const enemyType = Math.random();
-                        if (enemyType < 0.5) {
-                            createEnemyType1(x, 1.5, z);
-                        } else if (enemyType < 0.9) {
-                            createEnemyType2(x, 1.5, z);
-                        } else {
-                            createEnemyType3(x, 2.5, z);
-                        }
+                        if (enemyType < 0.5)      createEnemyType1(x, 1.5, z);
+                        else if (enemyType < 0.9) createEnemyType2(x, 1.5, z);
+                        else                       createEnemyType3(x, 2.5, z);
                     }
                 }
 
-                // Obstacles start later and are less frequent
-                if (i > 5 && Math.random() > 0.55) {
+                if (i > 5 && Math.random() < diff.obstacleChance) {
                     createObstacle(x, 1.5, z);
                 }
 
-                // Moving obstacles start even later
-                if (i > 8 && Math.random() > 0.65) {
+                if (i > 8 && Math.random() < diff.movingObstacleChance) {
                     createMovingObstacle(x, 1.5, z - 2);
                 }
 
-                // More collectibles
-                if (Math.random() > 0.25) {
+                if (Math.random() > diff.collectibleChance) {
                     createCollectible(x + (Math.random() - 0.5) * 4, 3, z);
                 }
 
@@ -1318,8 +1346,14 @@ async function init() {
 
         function resetGameState() {
             // Reset game state variables
+            const diff = DIFFICULTY[currentDifficulty];
+            gravity    = diff.gravity;
+            moveForce  = diff.moveForce;
+            maxSpeed   = diff.maxSpeed;
+            jumpForce  = diff.jumpForce;
+
             score = 0;
-            lives = 5;
+            lives = diff.lives;
             gameOver = false;
             gameStarted = true;
             deepestZ = 0;
@@ -1394,7 +1428,7 @@ async function init() {
             playSound('click', 0.6);
             resetGameState();
             document.getElementById('startScreen').classList.add('hidden');
-            document.getElementById('gameOverScreen').classList.add('hidden');
+            document.getElementById('gameOverScreen').style.display = 'none';
             document.getElementById('winScreen').classList.add('hidden');
             playBackgroundMusic();
         }
@@ -1403,7 +1437,7 @@ async function init() {
             resetGameState();
 
             // Hide game over and win screens, show start screen
-            document.getElementById('gameOverScreen').classList.add('hidden');
+            document.getElementById('gameOverScreen').style.display = 'none';
             document.getElementById('winScreen').classList.add('hidden');
             document.getElementById('startScreen').classList.remove('hidden');
 
@@ -1423,7 +1457,7 @@ async function init() {
             addScore(score);
             renderLeaderboard();
 
-            document.getElementById('gameOverScreen').classList.remove('hidden');
+            document.getElementById('gameOverScreen').style.display = 'flex';
         }
 
         function showWin() {
@@ -1441,6 +1475,22 @@ async function init() {
             let stars = '';
             for (let i = 0; i < lives; i++) stars += '⭐';
             document.getElementById('lives').textContent = stars || '😢';
+        }
+
+        function flashScore() {
+            const el = document.getElementById('score');
+            el.classList.remove('score-flash');
+            void el.offsetWidth; // reflow to restart animation
+            el.classList.add('score-flash');
+        }
+
+        function updateDifficultyUI() {
+            ['diff0', 'diff1', 'diff2'].forEach((id, i) => {
+                const btn = document.getElementById(id);
+                btn.classList.toggle('ring-2', i === currentDifficulty);
+                btn.classList.toggle('ring-white', i === currentDifficulty);
+                btn.style.opacity = i === currentDifficulty ? '1' : '0.5';
+            });
         }
 
         function onWindowResize() {
@@ -1490,6 +1540,7 @@ async function init() {
 
             // Platform collision
             let onGround = false;
+            let groundPlatform = null;
             const ballBox = new THREE.Box3().setFromObject(ball);
 
             platforms.forEach((platform, platformIndex) => {
@@ -1511,6 +1562,7 @@ async function init() {
                             ball.position.y = platform.mesh.position.y + platform.mesh.geometry.parameters.height / 2 + 1;
                             ballVelocity.y = 0;
                             onGround = true;
+                            groundPlatform = platform;
 
                             // Collect platform bonus if available and not already collected
                             const bonus = platformBonuses[platformIndex];
@@ -1631,8 +1683,10 @@ async function init() {
                         break;
                     }
                 }
-                // Track last safe ground position for friendly respawn
-                lastSafePosition.copy(ball.position);
+                // Only save safe position on a stable (non-moving, non-falling) platform
+                if (groundPlatform && !groundPlatform.isFalling && !groundPlatform.isMoving) {
+                    lastSafePosition.copy(ball.position);
+                }
             }
 
             // Update moving platforms
@@ -1733,18 +1787,30 @@ async function init() {
 
             // Collectibles
             collectibles.forEach(collectible => {
-                if (!collectible.collected) {
+                if (collectible.dying) {
+                    // Pop-out scale animation before hiding
+                    collectible.dyingTimer += delta;
+                    const s = 1 + collectible.dyingTimer * 8;
+                    collectible.mesh.scale.setScalar(s);
+                    collectible.mesh.material.opacity = Math.max(0, 1 - collectible.dyingTimer * 6);
+                    if (collectible.dyingTimer > 0.18) {
+                        collectible.mesh.visible = false;
+                        collectible.dying = false;
+                    }
+                } else if (!collectible.collected) {
                     // Rotate and bob
                     collectible.mesh.rotation.y += delta * 2;
                     collectible.mesh.position.y = collectible.baseY + Math.sin(Date.now() * 0.003) * 0.3;
-                    
-                    // Check collection
+
                     const dist = ball.position.distanceTo(collectible.mesh.position);
                     if (dist < 1.5) {
                         collectible.collected = true;
-                        collectible.mesh.visible = false;
+                        collectible.dying = true;
+                        collectible.dyingTimer = 0;
+                        collectible.mesh.material.transparent = true;
                         score += 100;
                         playSound('collect', 0.7);
+                        flashScore();
                         updateUI();
                     }
                 }
@@ -1763,8 +1829,28 @@ async function init() {
                 if (lives <= 0) {
                     showGameOver();
                 } else {
-                    // Respawn at last safe position, slightly above it
-                    ball.position.set(lastSafePosition.x, lastSafePosition.y + 2, lastSafePosition.z);
+                    // Find the nearest stable (non-falling) platform to the player's progress Z
+                    const targetZ = lastSafePosition.z;
+                    let bestPlatform = null;
+                    let bestDist = Infinity;
+                    platforms.forEach(platform => {
+                        if (platform.isFalling) return;
+                        const dist = Math.abs(platform.mesh.position.z - targetZ);
+                        if (dist < bestDist) {
+                            bestDist = dist;
+                            bestPlatform = platform;
+                        }
+                    });
+                    if (bestPlatform) {
+                        const h = bestPlatform.mesh.geometry.parameters.height / 2;
+                        ball.position.set(
+                            bestPlatform.mesh.position.x,
+                            bestPlatform.mesh.position.y + h + 2,
+                            bestPlatform.mesh.position.z
+                        );
+                    } else {
+                        ball.position.set(lastSafePosition.x, lastSafePosition.y + 2, lastSafePosition.z);
+                    }
                     ballVelocity.set(0, 0, 0);
                 }
             }
