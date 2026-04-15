@@ -96,6 +96,38 @@
         // Scoring tracking
         let deepestZ = 0; // Most negative Z reached (starting at 0)
         let gameStartTime = 0; // Track when game started for speed bonus
+
+        // Metal texture for moving walls
+        let metalWallTexture = null;
+
+        function loadMetalTexture() {
+            if (metalWallTexture) return metalWallTexture;
+
+            try {
+                const textureLoader = new THREE.TextureLoader();
+                // Use a reliable metal texture from Three.js CDN
+                metalWallTexture = textureLoader.load(
+                    'https://threejs.org/examples/textures/brick_diffuse.jpg',
+                    (texture) => {
+                        texture.wrapS = THREE.RepeatWrapping;
+                        texture.wrapT = THREE.RepeatWrapping;
+                        texture.repeat.set(3, 2);
+                        // Brighten texture by adjusting encoding
+                        texture.encoding = THREE.sRGBEncoding;
+                        console.log('[TEXTURE] Metal wall texture loaded successfully');
+                    },
+                    undefined,
+                    (error) => {
+                        console.warn('[TEXTURE] Failed to load metal texture:', error);
+                        metalWallTexture = null; // Reset on error to use fallback
+                    }
+                );
+                return metalWallTexture;
+            } catch (e) {
+                console.error('[TEXTURE] Error loading metal texture:', e);
+                return null;
+            }
+        }
         
         // Physics constants
         const gravity = -30;
@@ -755,14 +787,19 @@ async function init() {
         }
 
         function createMovingObstacle(x, y, z) {
-            const geometry = new THREE.BoxGeometry(3, 2, 1);
+            const geometry = new THREE.BoxGeometry(5, 3, 1.5);
+
+            // Try to use metal texture, fallback to solid color
+            const metalTexture = loadMetalTexture();
             const material = new THREE.MeshStandardMaterial({
-                color: 0xE67E22,
-                metalness: 0.5,
+                map: metalTexture,                    // Apply metal texture if loaded
+                color: 0xffffff,                      // White to show texture clearly
+                metalness: 0.6,
                 roughness: 0.4,
-                emissive: 0xD35400,
-                emissiveIntensity: 0.3
+                emissive: 0xcccccc,                   // Brighter emissive
+                emissiveIntensity: 0.5                // More glow for brightness
             });
+
             const obstacle = new THREE.Mesh(geometry, material);
             obstacle.position.set(x, y, z);
             obstacle.castShadow = true;
