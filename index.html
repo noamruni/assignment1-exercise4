@@ -156,6 +156,19 @@
                             if (n.isMesh) {
                                 n.castShadow = true;
                                 n.receiveShadow = true;
+                                // Brighten the jellyfish material
+                                if (n.material) {
+                                    if (n.material.emissive) {
+                                        n.material.emissive.setHex(0x4488ff);
+                                        n.material.emissiveIntensity = 0.6;
+                                    }
+                                    if (n.material.metalness !== undefined) {
+                                        n.material.metalness = 0.5;
+                                    }
+                                    if (n.material.roughness !== undefined) {
+                                        n.material.roughness = 0.4;
+                                    }
+                                }
                             }
                         });
                         ModelVerification.markLoaded('jellyfish', true, { source: url });
