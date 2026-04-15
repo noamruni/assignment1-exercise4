@@ -6,6 +6,8 @@
     <title>3D Rolling Ball Obstacle Course</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/utils/SkeletonUtils.js"></script>
     <style>
         body { margin: 0; overflow: hidden; }
         canvas { display: block; }
@@ -101,6 +103,89 @@
         const jumpForce = 15;
         const friction = 0.98;
         const maxSpeed = 20;
+
+        // Simple GLTF helpers for jellyfish pillars
+        let jellyTemplate = null;
+        const jellyInstances = [];
+
+        // Model loading verification system
+        const ModelVerification = {
+            loadedModels: {},
+            renderedModels: {},
+
+            markLoaded(modelName, success, details = {}) {
+                this.loadedModels[modelName] = {
+                    success,
+                    timestamp: Date.now(),
+                    ...details
+                };
+                console.log(`[MODEL VERIFY] ${modelName} loaded: ${success}`, details);
+            },
+
+            markRendered(modelName, instanceCount) {
+                this.renderedModels[modelName] = {
+                    instanceCount,
+                    timestamp: Date.now()
+                };
+                console.log(`[MODEL VERIFY] ${modelName} rendered: ${instanceCount} instances`);
+            },
+
+            getReport() {
+                return {
+                    loaded: this.loadedModels,
+                    rendered: this.renderedModels,
+                    summary: `Loaded: ${Object.keys(this.loadedModels).length}, Rendered: ${Object.keys(this.renderedModels).length}`
+                };
+            },
+
+            logReport() {
+                console.log('=== MODEL VERIFICATION REPORT ===');
+                console.table(this.loadedModels);
+                console.table(this.renderedModels);
+                console.log(this.getReport().summary);
+            }
+        };
+
+        function loadJellyModel(url) {
+            return new Promise((resolve, reject) => {
+                try {
+                    const loader = new THREE.GLTFLoader();
+                    loader.load(url, (gltf) => {
+                        jellyTemplate = gltf.scene;
+                        jellyTemplate.traverse(n => {
+                            if (n.isMesh) {
+                                n.castShadow = true;
+                                n.receiveShadow = true;
+                            }
+                        });
+                        ModelVerification.markLoaded('jellyfish', true, { source: url });
+                        console.log('[GLTF] jelly loaded successfully');
+                        resolve(true);
+                    }, undefined, (err) => {
+                        console.error('jelly load error', err);
+                        ModelVerification.markLoaded('jellyfish', false, { error: err.message });
+                        reject(err);
+                    });
+                } catch (e) {
+                    console.error('GLTF loader error', e);
+                    ModelVerification.markLoaded('jellyfish', false, { error: e.message });
+                    reject(e);
+                }
+            });
+        }
+
+        function spawnJelly(x, y, z, scale = 1) {
+            if (!jellyTemplate) {
+                console.warn('[PILLAR] jellyTemplate is null, cannot spawn jelly');
+                return null;
+            }
+            const clone = THREE.SkeletonUtils ? THREE.SkeletonUtils.clone(jellyTemplate) : jellyTemplate.clone();
+            clone.position.set(x, y, z);
+            clone.scale.setScalar(scale * 2); // make it larger
+            scene.add(clone);
+            jellyInstances.push(clone);
+            return clone;
+        }
 
         // Leaderboard management
         const LEADERBOARD_KEY = 'ballRunnerLeaderboard';
@@ -314,7 +399,7 @@
             }
         }
 
-function init() {
+async function init() {
             // Load all sounds
             loadSound('jump', 'sounds/jump.mp3');
             loadSound('hit', 'sounds/hit.mp3');
@@ -381,8 +466,15 @@ function init() {
 
             // Create player ball
             createBall();
-            
-            // Create obstacle course
+
+            // Load jellyfish model for decorative pillars - MUST complete before createCourse()
+            try {
+                await loadJellyModel('assets/models/jellyfish.glb');
+            } catch (err) {
+                console.error('[INIT] Failed to load jellyfish model, course will use fallback geometry:', err);
+            }
+
+            // Create obstacle course (now jellyTemplate is guaranteed to be loaded)
             createCourse();
 
             // Event listeners
@@ -519,11 +611,15 @@ function init() {
             createPlatformLabel('GOAL', 0, 0, -210);
 
             // Add decorative elements
+            const initialJellyCount = jellyInstances.length;
             for (let i = 0; i < 50; i++) {
                 const x = (Math.random() - 0.5) * 60;
                 const z = -Math.random() * courseLength;
                 createPillar(x, z);
             }
+            const finalJellyCount = jellyInstances.length;
+            const createdCount = finalJellyCount - initialJellyCount;
+            ModelVerification.markRendered('jellyfish-pillars', createdCount);
         }
 
         function isPlatformOverlapping(newBox) {
@@ -916,17 +1012,19 @@ function init() {
         }
 
         function createPillar(x, z) {
-            const height = 5 + Math.random() * 10;
-            const geometry = new THREE.CylinderGeometry(0.5, 0.8, height, 6);
-            const material = new THREE.MeshStandardMaterial({
-                color: 0x2c3e50,
-                metalness: 0.3,
-                roughness: 0.8
-            });
-            const pillar = new THREE.Mesh(geometry, material);
-            pillar.position.set(x, height / 2 - 5, z);
-            pillar.castShadow = true;
-            scene.add(pillar);
+            const baseY = 0; // Jellyfishes position themselves, no random height needed
+
+            // Spawn jellyfish as decorative pillar
+            if (!jellyTemplate) {
+                console.warn('[PILLAR] jellyTemplate not loaded, skipping pillar at', x, z);
+                return;
+            }
+
+            const scale = 0.8 + Math.random() * 0.8;
+            const inst = spawnJelly(x, baseY, z, scale);
+            if (inst) {
+                inst.castShadow = true;
+            }
         }
 
         function resetGameState() {
@@ -1399,6 +1497,10 @@ function init() {
             update(delta);
             renderer.render(scene, camera);
         }
+
+        // Expose model verification to window for debugging
+        window.verifyModels = () => ModelVerification.logReport();
+        window.getModelReport = () => ModelVerification.getReport();
 
         // Debug module for automated testing
         if (new URLSearchParams(location.search).get('debug') === '1') {
