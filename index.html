@@ -105,26 +105,65 @@
 
             try {
                 const textureLoader = new THREE.TextureLoader();
-                // Use a reliable metal texture from Three.js CDN
+                // Load wall texture from local assets
                 metalWallTexture = textureLoader.load(
-                    'https://threejs.org/examples/textures/brick_diffuse.jpg',
+                    'assets/textures/walls/concrete.jpg',
                     (texture) => {
                         texture.wrapS = THREE.RepeatWrapping;
                         texture.wrapT = THREE.RepeatWrapping;
                         texture.repeat.set(3, 2);
                         // Brighten texture by adjusting encoding
                         texture.encoding = THREE.sRGBEncoding;
-                        console.log('[TEXTURE] Metal wall texture loaded successfully');
+                        console.log('[TEXTURE] Wall concrete texture loaded successfully');
                     },
                     undefined,
                     (error) => {
-                        console.warn('[TEXTURE] Failed to load metal texture:', error);
-                        metalWallTexture = null; // Reset on error to use fallback
+                        console.warn('[TEXTURE] Failed to load wall texture, using fallback:', error);
+                        // Fallback to CDN if local file not found
+                        metalWallTexture = textureLoader.load(
+                            'https://threejs.org/examples/textures/brick_diffuse.jpg',
+                            (tex) => {
+                                tex.wrapS = THREE.RepeatWrapping;
+                                tex.wrapT = THREE.RepeatWrapping;
+                                tex.repeat.set(3, 2);
+                                console.log('[TEXTURE] Using fallback CDN texture for walls');
+                            }
+                        );
                     }
                 );
                 return metalWallTexture;
             } catch (e) {
                 console.error('[TEXTURE] Error loading metal texture:', e);
+                return null;
+            }
+        }
+
+        // Ball moon texture
+        let ballTexture = null;
+
+        function loadBallTexture() {
+            if (ballTexture) return ballTexture;
+
+            try {
+                const textureLoader = new THREE.TextureLoader();
+                // Load moon texture from local assets
+                ballTexture = textureLoader.load(
+                    'assets/textures/ball/moon.jpg',
+                    (texture) => {
+                        texture.wrapS = THREE.RepeatWrapping;
+                        texture.wrapT = THREE.RepeatWrapping;
+                        texture.repeat.set(1, 1);  // Single repeat for moon
+                        console.log('[TEXTURE] Ball moon texture loaded successfully');
+                    },
+                    undefined,
+                    (error) => {
+                        console.warn('[TEXTURE] Failed to load moon texture:', error);
+                        ballTexture = null; // Use fallback (no texture)
+                    }
+                );
+                return ballTexture;
+            } catch (e) {
+                console.error('[TEXTURE] Error loading ball texture:', e);
                 return null;
             }
         }
@@ -509,7 +548,15 @@ async function init() {
             orangeLight.position.set(15, 20, -150);
             scene.add(orangeLight);
 
-            // Create player ball
+            // Load textures BEFORE creating ball and course
+            try {
+                loadBallTexture();      // Pre-load ball texture
+                loadMetalTexture();     // Pre-load wall texture
+            } catch (err) {
+                console.error('[INIT] Failed to load textures:', err);
+            }
+
+            // Create player ball (now textures are loading/loaded)
             createBall();
 
             // Load jellyfish model for decorative pillars - MUST complete before createCourse()
@@ -543,18 +590,21 @@ async function init() {
         }
 
         function createBall() {
+            const ballTextureMap = loadBallTexture();
             const geometry = new THREE.SphereGeometry(1, 32, 32);
             const material = new THREE.MeshStandardMaterial({
-                color: 0xFF6B6B,
-                metalness: 0.8,
-                roughness: 0.2,
-                emissive: 0xFF3333,
-                emissiveIntensity: 0.5
+                map: ballTextureMap,              // Apply moon texture if loaded
+                color: 0xcccccc,                  // Light gray for moon appearance
+                metalness: 0.1,                   // Low metalness for rocky surface
+                roughness: 0.8,                   // High roughness for moon craters
+                emissive: 0x333333,               // Slight dark emissive
+                emissiveIntensity: 0.1            // Minimal glow
             });
             ball = new THREE.Mesh(geometry, material);
             ball.castShadow = true;
             ball.position.set(0, 2, 0);
             scene.add(ball);
+            console.log('[BALL] Moon ball created with texture:', ballTextureMap ? 'applied' : 'loading/failed');
         }
 
         function createCourse() {
