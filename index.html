@@ -538,42 +538,46 @@
 
         function createStarfieldBackground() {
             try {
-                // Create procedural starfield background
+                const W = 2048, H = 1024;
                 const canvas = document.createElement('canvas');
-                canvas.width = 512;
-                canvas.height = 512;
+                canvas.width = W;
+                canvas.height = H;
                 const ctx = canvas.getContext('2d');
 
                 starfieldData.canvas = canvas;
                 starfieldData.ctx = ctx;
+                starfieldData.W = W;
+                starfieldData.H = H;
 
-                // Generate star data
-                const starCount = 200;
-                const colors = ['#FFFFFF', '#AACCFF', '#FFDDAA', '#FF69B4', '#00FFFF', '#FFD700'];
+                // Realistic star colors: mostly blue-white, few warm
+                const colors = ['#FFFFFF', '#FFFFFF', '#FFFFFF', '#E8F0FF', '#E8F0FF', '#CCE0FF', '#FFE8CC', '#FFDDAA'];
 
-                for (let i = 0; i < starCount; i++) {
+                for (let i = 0; i < 600; i++) {
+                    const rand = Math.random();
+                    const r = rand < 0.80 ? Math.random() * 0.5 + 0.3   // 80% tiny
+                            : rand < 0.95 ? Math.random() * 0.9 + 0.9   // 15% medium
+                            : Math.random() * 1.5 + 2.0;                 // 5% bright
                     starfieldData.stars.push({
-                        x: Math.random() * 512,
-                        y: Math.random() * 512,
-                        size: Math.random() * 1.5,
-                        baseAlpha: Math.random() * 0.5 + 0.3,
+                        x: Math.random() * W,
+                        y: Math.random() * H,
+                        r,
+                        baseAlpha: Math.random() * 0.4 + 0.6,
                         color: colors[Math.floor(Math.random() * colors.length)],
-                        twinkleSpeed: Math.random() * 3 + 1,
+                        twinkleSpeed: Math.random() * 2 + 0.5,
                         twinklePhase: Math.random() * Math.PI * 2
                     });
                 }
 
                 const texture = new THREE.CanvasTexture(canvas);
-                texture.magFilter = THREE.NearestFilter;
-                texture.minFilter = THREE.NearestFilter;
+                texture.magFilter = THREE.LinearFilter;
+                texture.minFilter = THREE.LinearFilter;
                 starfieldData.texture = texture;
 
-                // Draw initial frame
                 updateStarfield(0);
                 return texture;
             } catch (e) {
                 console.error('Error creating starfield:', e);
-                return new THREE.Color(0x1a1a2e);
+                return new THREE.Color(0x0a0a1a);
             }
         }
 
@@ -582,41 +586,55 @@
 
             starfieldData.time += deltaTime;
             const ctx = starfieldData.ctx;
+            const W = starfieldData.W, H = starfieldData.H;
 
-            // Clear canvas
-            ctx.fillStyle = '#0a0a1a';
-            ctx.fillRect(0, 0, 512, 512);
+            ctx.fillStyle = '#06060f';
+            ctx.fillRect(0, 0, W, H);
 
-            // Draw stars with twinkling and color changes
-            starfieldData.stars.forEach(star => {
-                // Twinkling animation using sine wave
-                const twinkle = Math.sin(starfieldData.time * star.twinkleSpeed + star.twinklePhase) * 0.5 + 0.5;
-                const alpha = star.baseAlpha + twinkle * 0.5;
-
-                // Color cycling (lerp between colors)
-                const hue = (starfieldData.time * 0.3 + star.twinklePhase) % (Math.PI * 2);
-                const colorRotation = Math.floor((hue / (Math.PI * 2)) * 6) % 6;
-
-                ctx.fillStyle = star.color;
-                ctx.globalAlpha = alpha;
-                ctx.fillRect(star.x, star.y, star.size, star.size);
-
-                // Add glow effect occasionally
-                if (alpha > 0.7) {
-                    ctx.globalAlpha = alpha * 0.3;
-                    ctx.fillRect(star.x - 1, star.y - 1, star.size + 2, star.size + 2);
-                }
-                ctx.globalAlpha = 1;
+            // Nebula blobs — drawn before stars so they sit behind
+            [
+                { x: W * 0.2, y: H * 0.3, rad: W * 0.20, col: '80,40,140' },
+                { x: W * 0.72, y: H * 0.6, rad: W * 0.18, col: '30,60,130' },
+                { x: W * 0.5, y: H * 0.1, rad: W * 0.14, col: '80,20,100' }
+            ].forEach(n => {
+                const grd = ctx.createRadialGradient(n.x, n.y, 0, n.x, n.y, n.rad);
+                grd.addColorStop(0, `rgba(${n.col},0.09)`);
+                grd.addColorStop(1, `rgba(${n.col},0)`);
+                ctx.fillStyle = grd;
+                ctx.beginPath();
+                ctx.arc(n.x, n.y, n.rad, 0, Math.PI * 2);
+                ctx.fill();
             });
 
-            // Add nebula effect
-            const gradient = ctx.createLinearGradient(0, 0, 512, 512);
-            gradient.addColorStop(0, 'rgba(100, 50, 150, 0.1)');
-            gradient.addColorStop(0.5, 'rgba(50, 100, 150, 0.05)');
-            gradient.addColorStop(1, 'rgba(100, 50, 150, 0.1)');
-            ctx.fillStyle = gradient;
-            ctx.globalAlpha = 0.5 + Math.sin(starfieldData.time * 0.5) * 0.3;
-            ctx.fillRect(0, 0, 512, 512);
+            // Draw stars
+            starfieldData.stars.forEach(star => {
+                // Only medium/bright stars twinkle
+                const twinkle = star.r > 1.0
+                    ? Math.sin(starfieldData.time * star.twinkleSpeed + star.twinklePhase) * 0.15
+                    : 0;
+                const alpha = Math.min(1, star.baseAlpha + twinkle);
+
+                // Glow halo for bright stars
+                if (star.r > 1.5) {
+                    const haloR = star.r * 5;
+                    const grd = ctx.createRadialGradient(star.x, star.y, 0, star.x, star.y, haloR);
+                    grd.addColorStop(0, star.color + '44');
+                    grd.addColorStop(1, 'rgba(0,0,0,0)');
+                    ctx.globalAlpha = alpha * 0.6;
+                    ctx.fillStyle = grd;
+                    ctx.beginPath();
+                    ctx.arc(star.x, star.y, haloR, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // Star dot
+                ctx.globalAlpha = alpha;
+                ctx.fillStyle = star.color;
+                ctx.beginPath();
+                ctx.arc(star.x, star.y, star.r, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
             ctx.globalAlpha = 1;
 
             if (starfieldData.texture) {
